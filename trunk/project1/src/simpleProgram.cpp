@@ -9,12 +9,16 @@
 
 // Include the vector and matrix utilities from the textbook, as well as some
 // macro definitions.
+#ifdef USE_WINDOWS
+#include "../include/Angel.h"
+#else
 #include "Angel.h"
+#include <GL/glew.h>
+#include <GL/glut.h>
+#endif
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <GL/glew.h>
-#include <GL/glut.h>
 
 #ifdef __APPLE__
 #  include <OpenGL/gl3.h>
