@@ -1,6 +1,11 @@
+// COMMENT OR UNCOMMENT OUT THE LINE BELOW DEPENDING ON YOUR PLATFORM
+#define USE_WINDOWS
 
-//#include "Angel.h"
+#ifdef USE_WINDOWS
+#include "../include/Angel.h"
+#else
 #include "Angel.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
