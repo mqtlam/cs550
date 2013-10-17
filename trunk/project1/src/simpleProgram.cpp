@@ -43,9 +43,10 @@ const int NO_DATA_BUCKET = -1;
 //------------------------------------------------------------------------------
 // global variables for convenience
 
-// A global variable for the number of points that will be in our object.
-int g_NumPoints = 6;
-int lineVecSize = 0;
+// A global variable for the number of triangle vertices for the data
+int g_NumTrianglePoints;
+// A global variable for the number of contour vertices
+int g_NumContourPoints;
 // number of rows and columns in our data
 int g_nRows, g_nCols;
 
@@ -205,12 +206,15 @@ void HSVtoRGB(float hsv[3], float rgb[3]) {
 
 //----------------------------------------------------------------------------
 void init(int** discretizedData) {
-	float horzUnit = 1.0 / g_nCols * 2;
-	float vertUnit = 1.0 / g_nRows * 2;
+	// determine the horizontal and vertical measure of each unit square to draw
+	float horzUnit = 2 * 1.0 / (g_nCols+2);
+	float vertUnit = 2 * 1.0 / (g_nRows+2);
 
+	// Determine the vertices of the contours
 	vector<vec2> linesVertices;
 	for (int row = 1; row < g_nRows; row++) {
 		for (int col = 1; col < g_nCols; col++) {
+			// vertical contours
 			if (discretizedData[row][col - 1] != discretizedData[row][col]) {
 				linesVertices.push_back(
 						vec2(col * horzUnit - 1, (row) * vertUnit - 1));
@@ -218,6 +222,8 @@ void init(int** discretizedData) {
 						vec2(col * horzUnit - 1, (row + 1) * vertUnit - 1));
 
 			}
+
+			// horizontal contours
 			if (discretizedData[row - 1][col] != discretizedData[row][col]) {
 				linesVertices.push_back(
 						vec2((col) * horzUnit - 1, row * vertUnit - 1));
@@ -228,20 +234,18 @@ void init(int** discretizedData) {
 
 		}
 	}
-	lineVecSize = linesVertices.size();
+	g_NumContourPoints = linesVertices.size();
+
 	// Specify the discretized data in terms of vertices and colors for drawing
-	vec2* vertices = new vec2[g_NumPoints + linesVertices.size()];
-	vec3* colors = new vec3[g_NumPoints + linesVertices.size()];
+	vec2* vertices = new vec2[g_NumTrianglePoints + g_NumContourPoints];
+	vec3* colors = new vec3[g_NumTrianglePoints];
 
 	// camera sees x = [-1, 1] and y = [-1, 1]
 	// so fit the number of rows and columns into this view by discretizing
 	// this space into horizontal and vertical units
 	// first discretize by assuming at origin,
 	// then multiply by two since origin will be at (-1, -1)
-	for (int row = 0; row < g_nRows; row++) {
-		for (int col = 0; col < g_nCols; col++) {
-		}
-	}
+
 	// calculate vertices and colors for each discretized data point
 	for (int row = 0; row < g_nRows; row++) {
 		for (int col = 0; col < g_nCols; col++) {
@@ -259,9 +263,9 @@ void init(int** discretizedData) {
 					(row + 1) * vertUnit - 1);
 			// second triangle
 			vertices[index + 3] = vec2(col * horzUnit - 1, row * vertUnit - 1);
-			vertices[index + 4] = vec2(col * horzUnit - 1,
+			vertices[index + 4] = vec2((col + 1) * horzUnit - 1,
 					(row + 1) * vertUnit - 1);
-			vertices[index + 5] = vec2((col + 1) * horzUnit - 1,
+			vertices[index + 5] = vec2(col * horzUnit - 1,
 					(row + 1) * vertUnit - 1);
 
 			// assign appropriate color:
@@ -283,8 +287,9 @@ void init(int** discretizedData) {
 		}
 	}
 
+	// Add contour lines to the set of vertices
 	for (int i = 0; i < linesVertices.size(); i++) {
-		vertices[g_NumPoints + i] = linesVertices[i];
+		vertices[g_NumTrianglePoints + i] = linesVertices[i];
 	}
 
 	// Create a vertex array object---OpenGL needs this to manage the Vertex
@@ -309,7 +314,7 @@ void init(int** discretizedData) {
 	// tell it the type of buffer object, the size of the data in bytes, the
 	// pointer for the data itself, and a hint for how we intend to use it.
 	glBufferData(GL_ARRAY_BUFFER,
-			(g_NumPoints + linesVertices.size()) * sizeof(vec2), vertices,
+			(g_NumTrianglePoints + linesVertices.size()) * sizeof(vec2), vertices,
 			GL_STATIC_DRAW);
 
 	// Load the shaders.  Note that this function is not offered by OpenGL
@@ -344,7 +349,7 @@ void init(int** discretizedData) {
 
 	// Now repeat lots of that stuff for the colors
 	glBindBuffer(GL_ARRAY_BUFFER, buffer[1]);
-	glBufferData(GL_ARRAY_BUFFER, g_NumPoints * sizeof(vec3), colors,
+	glBufferData(GL_ARRAY_BUFFER, g_NumTrianglePoints * sizeof(vec3), colors,
 	GL_STATIC_DRAW);
 
 	GLuint colorLoc = glGetAttribLocation(program, "vColor");
@@ -362,9 +367,13 @@ void display(void) {
 
 	// Draw the points.  The parameters to the function are: the mode, the first
 	// index, and the count.
-	glDrawArrays(GL_TRIANGLES, 0, g_NumPoints);
 
-	glDrawArrays(GL_LINES, lineVecSize, g_NumPoints + lineVecSize);
+	// Draw the data
+	glDrawArrays(GL_TRIANGLES, 0, g_NumTrianglePoints);
+
+	// Draw the contours
+	glDrawArrays(GL_LINES, g_NumContourPoints, g_NumTrianglePoints + g_NumContourPoints);
+	
 	glFlush();
 	glutSwapBuffers();
 }
@@ -399,7 +408,11 @@ int main(int argc, char** argv) {
 	g_nCols = 0;
 	float** data = readFromFile(filename, g_nRows, g_nCols);
 	int** discretizedData = discretizeData(data, g_nRows, g_nCols);
-	g_NumPoints = 6 * g_nRows * g_nCols;
+	g_NumTrianglePoints = 6 * g_nRows * g_nCols;
+
+	cout << "Read in file '" << filename << "'." << endl;
+	cout << "\tRows=" << g_nRows << endl;
+	cout << "\tCols=" << g_nCols << endl;
 
 	// misc
 	float rgb[] = { 0, 0, 0 };
