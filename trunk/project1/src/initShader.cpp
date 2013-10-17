@@ -1,5 +1,5 @@
 // COMMENT OR UNCOMMENT OUT THE LINE BELOW DEPENDING ON YOUR PLATFORM
-#define USE_WINDOWS
+//#define USE_WINDOWS
 
 #ifdef USE_WINDOWS
 #include "../include/Angel.h"

@@ -5,7 +5,7 @@
 #define GL3_PROTOTYPES
 
 // COMMENT OR UNCOMMENT OUT THE LINE BELOW DEPENDING ON YOUR PLATFORM
-#define USE_WINDOWS
+//#define USE_WINDOWS
 
 // Include the vector and matrix utilities from the textbook, as well as some
 // macro definitions.
@@ -19,7 +19,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-
+#include <vector>
 #ifdef __APPLE__
 #  include <OpenGL/gl3.h>
 #endif
@@ -45,7 +45,7 @@ const int NO_DATA_BUCKET = -1;
 
 // A global variable for the number of points that will be in our object.
 int g_NumPoints = 6;
-
+int lineVecSize = 0;
 // number of rows and columns in our data
 int g_nRows, g_nCols;
 
@@ -205,18 +205,43 @@ void HSVtoRGB(float hsv[3], float rgb[3]) {
 
 //----------------------------------------------------------------------------
 void init(int** discretizedData) {
+	float horzUnit = 1.0 / g_nCols * 2;
+	float vertUnit = 1.0 / g_nRows * 2;
+
+	vector<vec2> linesVertices;
+	for (int row = 1; row < g_nRows; row++) {
+		for (int col = 1; col < g_nCols; col++) {
+			if (discretizedData[row][col - 1] != discretizedData[row][col]) {
+				linesVertices.push_back(
+						vec2(col * horzUnit - 1, (row) * vertUnit - 1));
+				linesVertices.push_back(
+						vec2(col * horzUnit - 1, (row + 1) * vertUnit - 1));
+
+			}
+			if (discretizedData[row - 1][col] != discretizedData[row][col]) {
+				linesVertices.push_back(
+						vec2((col) * horzUnit - 1, row * vertUnit - 1));
+				linesVertices.push_back(
+						vec2((col + 1) * horzUnit - 1, row * vertUnit - 1));
+
+			}
+
+		}
+	}
+	lineVecSize = linesVertices.size();
 	// Specify the discretized data in terms of vertices and colors for drawing
-	vec2* vertices = new vec2[g_NumPoints];
-	vec3* colors = new vec3[g_NumPoints];
+	vec2* vertices = new vec2[g_NumPoints + linesVertices.size()];
+	vec3* colors = new vec3[g_NumPoints + linesVertices.size()];
 
 	// camera sees x = [-1, 1] and y = [-1, 1]
 	// so fit the number of rows and columns into this view by discretizing
 	// this space into horizontal and vertical units
 	// first discretize by assuming at origin,
 	// then multiply by two since origin will be at (-1, -1)
-	float horzUnit = 1.0 / g_nCols * 2;
-	float vertUnit = 1.0 / g_nRows * 2;
-
+	for (int row = 0; row < g_nRows; row++) {
+		for (int col = 0; col < g_nCols; col++) {
+		}
+	}
 	// calculate vertices and colors for each discretized data point
 	for (int row = 0; row < g_nRows; row++) {
 		for (int col = 0; col < g_nCols; col++) {
@@ -258,6 +283,10 @@ void init(int** discretizedData) {
 		}
 	}
 
+	for (int i = 0; i < linesVertices.size(); i++) {
+		vertices[g_NumPoints + i] = linesVertices[i];
+	}
+
 	// Create a vertex array object---OpenGL needs this to manage the Vertex
 	// Buffer Object
 	GLuint vao[1];
@@ -279,8 +308,9 @@ void init(int** discretizedData) {
 	// Here we copy the vertex data into our buffer on the card.  The parameters
 	// tell it the type of buffer object, the size of the data in bytes, the
 	// pointer for the data itself, and a hint for how we intend to use it.
-	glBufferData(GL_ARRAY_BUFFER, g_NumPoints * sizeof(vec2), vertices,
-	GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER,
+			(g_NumPoints + linesVertices.size()) * sizeof(vec2), vertices,
+			GL_STATIC_DRAW);
 
 	// Load the shaders.  Note that this function is not offered by OpenGL
 	// directly, but provided as a convenience.
@@ -288,7 +318,8 @@ void init(int** discretizedData) {
 	GLuint program = InitShader("../SimpleProgram/src/vshader32.glsl",
 			"../SimpleProgram/src/fshader32.glsl");
 #else
-	GLuint program = InitShader("shaders/vshader32.glsl", "shaders/fshader32.glsl");
+	GLuint program = InitShader("shaders/vshader32.glsl",
+			"shaders/fshader32.glsl");
 #endif
 
 	// Make that shader program active.
@@ -332,6 +363,8 @@ void display(void) {
 	// Draw the points.  The parameters to the function are: the mode, the first
 	// index, and the count.
 	glDrawArrays(GL_TRIANGLES, 0, g_NumPoints);
+
+	glDrawArrays(GL_LINES, lineVecSize, g_NumPoints + lineVecSize);
 	glFlush();
 	glutSwapBuffers();
 }
