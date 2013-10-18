@@ -238,7 +238,7 @@ void init(int** discretizedData) {
 
 	// Specify the discretized data in terms of vertices and colors for drawing
 	vec2* vertices = new vec2[g_NumTrianglePoints + g_NumContourPoints];
-	vec3* colors = new vec3[g_NumTrianglePoints];
+	vec3* colors = new vec3[g_NumTrianglePoints + g_NumContourPoints];
 
 	// camera sees x = [-1, 1] and y = [-1, 1]
 	// so fit the number of rows and columns into this view by discretizing
@@ -274,7 +274,7 @@ void init(int** discretizedData) {
 			int bucket = discretizedData[row][col];
 
 			// default color is white for no data bucket
-			float rgb[3] = { 1, 1, 1 };
+			float rgb[3] = { 1, 1, 1 }; //white
 			if (bucket != NO_DATA_BUCKET) {
 				// color with value
 				float hsv[3] =
@@ -287,9 +287,10 @@ void init(int** discretizedData) {
 		}
 	}
 
-	// Add contour lines to the set of vertices
+	// Add contour lines to the set of vertices and set color to black
 	for (int i = 0; i < linesVertices.size(); i++) {
 		vertices[g_NumTrianglePoints + i] = linesVertices[i];
+		colors[g_NumTrianglePoints + i] = vec3(0, 0, 0); //black
 	}
 
 	// Create a vertex array object---OpenGL needs this to manage the Vertex
@@ -314,7 +315,7 @@ void init(int** discretizedData) {
 	// tell it the type of buffer object, the size of the data in bytes, the
 	// pointer for the data itself, and a hint for how we intend to use it.
 	glBufferData(GL_ARRAY_BUFFER,
-			(g_NumTrianglePoints + linesVertices.size()) * sizeof(vec2), vertices,
+			(g_NumTrianglePoints + g_NumContourPoints) * sizeof(vec2), vertices,
 			GL_STATIC_DRAW);
 
 	// Load the shaders.  Note that this function is not offered by OpenGL
@@ -349,7 +350,7 @@ void init(int** discretizedData) {
 
 	// Now repeat lots of that stuff for the colors
 	glBindBuffer(GL_ARRAY_BUFFER, buffer[1]);
-	glBufferData(GL_ARRAY_BUFFER, g_NumTrianglePoints * sizeof(vec3), colors,
+	glBufferData(GL_ARRAY_BUFFER, (g_NumTrianglePoints + g_NumContourPoints) * sizeof(vec3), colors,
 	GL_STATIC_DRAW);
 
 	GLuint colorLoc = glGetAttribLocation(program, "vColor");
