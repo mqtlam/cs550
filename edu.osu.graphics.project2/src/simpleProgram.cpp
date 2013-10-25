@@ -7,6 +7,7 @@
 // macro definitions.
 #include "Angel.h"
 #include <stdio.h>
+#include <string.h>
 #include "SceneLoader.h"
 #ifdef __APPLE__
 #  include <OpenGL/gl3.h>
@@ -23,9 +24,14 @@ GLuint projection; // projection matrix uniform shader variable location
 
 point4* points;
 vec4* normals;
+enum TransformType {
+	perspective, orthonormal
+};
 
-//point4 points[NumVertices];
-//vec4 normals[NumVertices];
+TransformType tranformType = perspective;
+string sceneFile = "scene.scn";
+float fx, fy, fz, ax, ay, az, ux, uy, uz, fovy, aspect, zNear, zFar;
+float left_, right_, bottom_, top_;
 
 // Vertices of a unit cube centered at origin, sides aligned with axes
 point4 vertices[8] = { point4(-0.5, -0.5, 0.5, 1.0), point4(-0.5, 0.5, 0.5,
@@ -94,13 +100,12 @@ void myFunc(Object object, Face face) {
 void init() {
 
 	SceneLoader sceneLoader;
-	sceneLoader.loadSceneFile("scene.txt");
+	sceneLoader.loadSceneFile("scene.scn");
 	sceneLoader.loadAndAddObjects();
-	int k = 0;
 	for (unsigned int i = 0; i < sceneLoader.objects.size(); i++) {
-		k += sceneLoader.objects[i].faces.size();
+		NumVertices += sceneLoader.objects[i].faces.size();
 	}
-	NumVertices = k * 3;
+	NumVertices = NumVertices * 3;
 	cout << NumVertices << endl;
 	points = new point4[NumVertices];
 	normals = new vec4[NumVertices];
@@ -174,16 +179,15 @@ void init() {
 
 	model_view = glGetUniformLocation(program, "ModelView");
 	projection = glGetUniformLocation(program, "Projection");
-	mat4 p = Perspective(90.0, 1.0, 0.1, 0.5);
-//	mat4 p = Perspective(45, 1.0, 0.1, 10.0);
-
-//	point4 eye(1.0, 1.0, 2.0, 1.0);
-//	point4 at(0.0, 0.0, 0.0, 1.0);
-//	vec4 up(0.0, 1.0, 0.0, 0.0);
-
-	point4 eye(0.0, 0.0, 0.3, 1.0);
-	point4 at(0.0, 0.1, 0.0, 1.0);
-	vec4 up(0.0, 1.0, 0.0, 0.0);
+	mat4 p;
+	if (tranformType == perspective) {
+		p = Perspective(fovy, aspect, zNear, zFar);
+	} else {
+		p = Ortho(left_, right_, bottom_, top_, zNear, zFar);
+	}
+	point4 eye(fx, fy, fz, 1.0);
+	point4 at(ax, ay, az, 1.0);
+	vec4 up(ux, uy, uz, 0.0);
 
 	mat4 mv = LookAt(eye, at, up);
 	//vec4 v = vec4(0.0, 0.0, 1.0, 1.0);
@@ -225,9 +229,32 @@ void keyboard(unsigned char key, int x, int y) {
  */
 
 /* glut.h includes gl.h and glu.h*/
-
 int main(int argc, char** argv) {
-
+	sceneFile = string(argv[1]);
+	if (strcmp(argv[2], "p") == 0) {
+		tranformType = perspective;
+		fx = atof(argv[3]);
+		fy = atof(argv[4]);
+		fz = atof(argv[5]);
+		ax = atof(argv[6]);
+		ay = atof(argv[7]);
+		az = atof(argv[8]);
+		ux = atof(argv[9]);
+		uy = atof(argv[10]);
+		uz = atof(argv[11]);
+		fovy = atof(argv[12]);
+		aspect = atof(argv[13]);
+		zNear = atof(argv[14]);
+		zFar = atof(argv[15]);
+	} else {
+		tranformType = orthonormal;
+		left_ = atof(argv[3]);
+		right_ = atof(argv[4]);
+		bottom_ = atof(argv[5]);
+		top_ = atof(argv[6]);
+		zNear = atof(argv[7]);
+		zFar = atof(argv[8]);
+	}
 	glutInit(&argc, argv);
 #ifdef __APPLE__
 	glutInitDisplayMode(GLUT_3_2_CORE_PROFILE | GLUT_RGBA | GLUT_DEPTH);
