@@ -31,10 +31,9 @@ public:
 	vector<Face> faces;
 };
 class SceneLoader {
-private:
+public:
 	vector<string> objectFiles;
 	vector<Object> objects;
-public:
 	SceneLoader();
 	virtual ~SceneLoader();
 	void loadSceneFile(string sceneFileName);

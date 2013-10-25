@@ -83,8 +83,9 @@ Object SceneLoader::loadObjectFile(string objectFileName) {
 				stringVector.push_back(string(pch));
 				for (unsigned int i = 0; i < stringVector.size(); i++) {
 					pch = strtok((char*) stringVector[i].c_str(), "//");
-					face.vertexId[i] = atoi(pch);
+					face.vertexId[i] = atoi(pch) - 1;
 					pch = strtok(NULL, "//");
+					face.vertexNormalId[i] = atoi(pch) - 1;
 				}
 				object.faces.push_back(face);
 			}
