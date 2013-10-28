@@ -29,13 +29,12 @@ Using a fresh copy of the Windows MSVC 2012 files from the Resources page, copy 
 
 (Note that the shader files have been unaltered from the original assignment #2 shader files.)
 
-Then compile and run.
+Then compile using Visual Studio and run.
 
 ----------------
 Running in Linux
 ----------------
 
-Similar to Windows instructions, except use the linux files from the Resources page.
-Must comment out the line #define USE_WINDOWS in all .cpp files in the src/ directory.
+Similar to Windows instructions. Must comment out the line #define USE_WINDOWS in all .cpp files in the src/ directory.
 
-Then compile and run.
+Then compile using make and run.
