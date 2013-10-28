@@ -5,7 +5,14 @@
  *      Author: behrooz
  */
 
+// COMMENT OR UNCOMMENT LINE BELOW DEPENDING ON PLATFORM
+//#define USE_WINDOWS
+
+#ifdef USE_WINDOWS
+#include "../headers/SceneLoader.h"
+#else
 #include "SceneLoader.h"
+#endif
 #include <iostream>
 #include <fstream>
 #include <string.h>

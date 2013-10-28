@@ -1,6 +1,12 @@
+// COMMENT OR UNCOMMENT LINE BELOW DEPENDING ON PLATFORM
+//#define USE_WINDOWS
 
 //#include "Angel.h"
+#ifdef USE_WINDOWS
+#include "../include/Angel.h"
+#else
 #include "Angel.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>

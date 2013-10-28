@@ -3,12 +3,20 @@
 //Includes vec, mat, and other include files as well as macro defs
 #define GL3_PROTOTYPES
 
+// COMMENT OR UNCOMMENT LINE BELOW DEPENDING ON PLATFORM
+//#define USE_WINDOWS
+
 // Include the vector and matrix utilities from the textbook, as well as some
 // macro definitions.
+#ifdef USE_WINDOWS
+#include "../include/Angel.h"
+#include "../headers/SceneLoader.h"
+#else
 #include "Angel.h"
+#include "SceneLoader.h"
+#endif
 #include <stdio.h>
 #include <string.h>
-#include "SceneLoader.h"
 #ifdef __APPLE__
 #  include <OpenGL/gl3.h>
 #endif
@@ -100,7 +108,7 @@ void myFunc(Object object, Face face) {
 void init() {
 
 	SceneLoader sceneLoader;
-	sceneLoader.loadSceneFile("scene.scn");
+	sceneLoader.loadSceneFile(sceneFile);
 	sceneLoader.loadAndAddObjects();
 	for (unsigned int i = 0; i < sceneLoader.objects.size(); i++) {
 		NumVertices += sceneLoader.objects[i].faces.size();
@@ -125,7 +133,7 @@ void init() {
 	GLuint buffer;
 	glGenBuffers(1, &buffer);
 	glBindBuffer( GL_ARRAY_BUFFER, buffer);
-	int pointsSize = NumVertices * sizeof(vec4);
+	int pointsSize = NumVertices * sizeof(point4);
 	int normalzSize = NumVertices * sizeof(vec4);
 	glBufferData( GL_ARRAY_BUFFER, pointsSize + normalzSize,
 	NULL, GL_STATIC_DRAW);
@@ -248,12 +256,27 @@ int main(int argc, char** argv) {
 		zFar = atof(argv[15]);
 	} else {
 		tranformType = orthonormal;
-		left_ = atof(argv[3]);
-		right_ = atof(argv[4]);
-		bottom_ = atof(argv[5]);
-		top_ = atof(argv[6]);
-		zNear = atof(argv[7]);
-		zFar = atof(argv[8]);
+		fx = atof(argv[3]);
+		fy = atof(argv[4]);
+		fz = atof(argv[5]);
+		ax = atof(argv[6]);
+		ay = atof(argv[7]);
+		az = atof(argv[8]);
+		ux = atof(argv[9]);
+		uy = atof(argv[10]);
+		uz = atof(argv[11]);
+		left_ = atof(argv[12]);
+		right_ = atof(argv[13]);
+		bottom_ = atof(argv[14]);
+		top_ = atof(argv[15]);
+		zNear = atof(argv[16]);
+		zFar = atof(argv[17]);
+		//left_ = atof(argv[3]);
+		//right_ = atof(argv[4]);
+		//bottom_ = atof(argv[5]);
+		//top_ = atof(argv[6]);
+		//zNear = atof(argv[7]);
+		//zFar = atof(argv[8]);
 	}
 	glutInit(&argc, argv);
 #ifdef __APPLE__
