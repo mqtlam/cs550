@@ -1,0 +1,4 @@
+# m /* The number of objects in the scene */
+#data/sphere42NS.obj
+#data/bunnyNS.obj
+data/faceNS.obj
