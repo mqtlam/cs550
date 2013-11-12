@@ -25,21 +25,36 @@ using namespace graphics;
 typedef Angel::vec4 color4;
 typedef Angel::vec4 point4;
 
-int NumVertices = 0; //(6 faces)(2 triangles/face)(3 vertices/triangle)
+//----------------------------------------------------------------------------
 
 GLuint model_view;  // model-view matrix uniform shader variable location
 GLuint projection; // projection matrix uniform shader variable location
 
-// projection type
+//----------------------------------------------------------------------------
+
+// define projection types
 enum ProjectionType {
 	perspective, orthonormal
 };
 
 ProjectionType tranformType = perspective;
 
-// camera/projection parameters
-float fx = 0;
-float fy = 0;
+//----------------------------------------------------------------------------
+
+// define all the transformation modes
+enum TransformMode {
+	OBJECT_TRANSLATE, OBJECT_ROTATE, OBJECT_SCALE,
+	SCENE_ROTATE_X, SCENE_ROTATE_Y, SCENE_ROTATE_Z, SCENE_TRANSLATE, SCENE_DOLLY
+};
+
+// global variable to store current mode
+TransformMode currentTransformMode = OBJECT_TRANSLATE;
+
+//----------------------------------------------------------------------------
+
+// declarations and default camera/projection parameters
+float fx = 2;
+float fy = 2;
 float fz = 2;
 float ax = 0;
 float ay = 0;
@@ -53,17 +68,7 @@ float left_, right_, bottom_, top_;
 
 //----------------------------------------------------------------------------
 
-// enumerates all the transformation modes
-enum TransformMode {
-	OBJECT_TRANSLATE, OBJECT_ROTATE, OBJECT_SCALE,
-	SCENE_ROTATE_X, SCENE_ROTATE_Y, SCENE_ROTATE_Z, SCENE_TRANSLATE, SCENE_DOLLY
-};
-
-// global variable to store current mode
-TransformMode currentTransformMode = OBJECT_TRANSLATE;
-
-//----------------------------------------------------------------------------
-// declarations for selection functionality
+// declarations for object selection functionality
 // mostly borrowed from selection demo from class
 
 // struct for holding an instance of an object
@@ -90,10 +95,8 @@ vector<ObjectInstance> myObjects;
 int idcount = 200; // initial color
 int counter = 0; // initial counter
 
-//seleciton stuff
+//selection state variables
 GLuint program;
-
-//Selection variables
 GLuint selectionColorR, selectionColorG, selectionColorB, selectionColorA;
 int picked = -1;
 GLint flag = 0;
@@ -101,7 +104,69 @@ GLuint SelectFlagLoc;
 GLuint SelectColorRLoc, SelectColorGLoc, SelectColorBLoc, SelectColorALoc;
 
 //----------------------------------------------------------------------------
+// other state information
 
+// mouse state information
+bool isMousePressed = false;
+int pressedMouseX, pressedMouseY;
+
+//----------------------------------------------------------------------------
+
+// defines world plane
+class WorldPlane
+{
+public:
+	static point4 points[6];
+	static vec4 normals[6];
+
+	int vaoID;
+	int numVertices;
+
+	void init()
+	{
+		// Create a vertex array object
+		GLuint vao;
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+
+		vaoID = vao;
+		numVertices = 6;
+
+		// Create and initialize a buffer object
+		GLuint buffer;
+		glGenBuffers(1, &buffer);
+		glBindBuffer( GL_ARRAY_BUFFER, buffer);
+		int pointsSize = numVertices * sizeof(point4);
+		int normalzSize = numVertices * sizeof(vec4);
+		glBufferData( GL_ARRAY_BUFFER, pointsSize + normalzSize,
+		NULL, GL_STATIC_DRAW);
+		glBufferSubData( GL_ARRAY_BUFFER, 0, pointsSize, points);
+		glBufferSubData( GL_ARRAY_BUFFER, pointsSize, normalzSize, normals);
+
+		// set up vertex arrays
+		GLuint vPosition = glGetAttribLocation(program, "vPosition");
+		glEnableVertexAttribArray(vPosition);
+		glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0,
+				BUFFER_OFFSET(0));
+
+		GLuint vNormal = glGetAttribLocation(program, "vNormal");
+		glEnableVertexAttribArray(vNormal);
+		glVertexAttribPointer(vNormal, 4, GL_FLOAT, GL_FALSE, 0,
+				BUFFER_OFFSET(pointsSize));
+	}
+};
+
+point4 WorldPlane::points[6] = { point4(-1,0,-1,1), point4(1,0,1,1),
+	point4(1,0,-1,1), point4(-1,0,1,1), point4(1,0,1,1), point4(-1,0,-1,1)};
+vec4 WorldPlane::normals[6] = { vec4(0,1,0,0), vec4(0,1,0,0),
+	vec4(0,1,0,0), vec4(0,1,0,0), vec4(0,1,0,0), vec4(0,1,0,0)};
+
+// global variable to keep track of single world plane
+WorldPlane worldPlane = WorldPlane();
+
+//----------------------------------------------------------------------------
+
+// helper function to load vertices for each face
 int Index = 0;
 void myFunc(Object object, Face face, struct ObjectInstance& curObject) {
 	for (int i = 0; i < 3; i++) {
@@ -116,6 +181,7 @@ void myFunc(Object object, Face face, struct ObjectInstance& curObject) {
 
 //----------------------------------------------------------------------------
 
+// loads an object into the scene from a file
 void loadObjectFromFile(string filename)
 {
 	// declare current object
@@ -181,6 +247,9 @@ void init() {
 	// Load shaders and use the resulting shader program
 	program = InitShader("shaders/vshader.glsl", "shaders/fshader.glsl");
 	glUseProgram(program);
+
+	// initialize world plane
+	worldPlane.init();
 
 	// TODO for debugging convenience; final = remove below
 	//loadObjectFromFile("data/bunnyS.obj");
@@ -258,63 +327,114 @@ void init() {
 void
 mouse( int button, int state, int x, int y )
 {
-  //printf("Mouse button pressed at %d, %d\n", x, y);
-  //0 is reserved for the background color so skip it.
+	// store location of latest mouse click
+	if (button == GLUT_LEFT_BUTTON)
+	{
+		pressedMouseX = x;
+		pressedMouseY = y;
+	}
 
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//printf("Mouse button pressed at %d, %d\n", x, y);
+	//0 is reserved for the background color so skip it.
 
-  //render each object, setting the selection RGBA to the objects selection color (RGBA)
-  for(int i=0; i < counter; i++)
-    {
-      //should store numVerts with vao and possibly the index in the array of objects, instead of storing only ints as I currently am
-      //which represent the vaos
-      flag = 1;
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-      glBindVertexArray(myObjects[i].vaoID);
+	//render each object, setting the selection RGBA to the objects selection color (RGBA)
+	for(int i=0; i < counter; i++)
+	{
+		//should store numVerts with vao and possibly the index in the array of objects, instead of storing only ints as I currently am
+		//which represent the vaos
+		flag = 1;
 
-      selectionColorR = myObjects[i].selectionR;
-      selectionColorG = myObjects[i].selectionG;
-      selectionColorB = myObjects[i].selectionB;
-      selectionColorA = myObjects[i].selectionA;
+		glBindVertexArray(myObjects[i].vaoID);
 
-      //sync with shader
-      glUniform1i(SelectColorRLoc,selectionColorR);
-      glUniform1i(SelectColorGLoc,selectionColorG);
-      glUniform1i(SelectColorBLoc,selectionColorB);
-      glUniform1i(SelectColorALoc,selectionColorA);
-      glUniform1i(SelectFlagLoc, flag);
+		selectionColorR = myObjects[i].selectionR;
+		selectionColorG = myObjects[i].selectionG;
+		selectionColorB = myObjects[i].selectionB;
+		selectionColorA = myObjects[i].selectionA;
 
-      //Draw the scene.  The flag will force shader to not use shading, but instead use a constant color
-      glDrawArrays( GL_TRIANGLES, 0, myObjects[i].numVertices );
-      glutPostRedisplay();  //MUST REMEMBER TO CALL POST REDISPLAY OR IT WONT RENDER!
+		//sync with shader
+		glUniform1i(SelectColorRLoc,selectionColorR);
+		glUniform1i(SelectColorGLoc,selectionColorG);
+		glUniform1i(SelectColorBLoc,selectionColorB);
+		glUniform1i(SelectColorALoc,selectionColorA);
+		glUniform1i(SelectFlagLoc, flag);
 
-    }
+		//Draw the scene.  The flag will force shader to not use shading, but instead use a constant color
+		glDrawArrays( GL_TRIANGLES, 0, myObjects[i].numVertices );
+		glutPostRedisplay();  //MUST REMEMBER TO CALL POST REDISPLAY OR IT WONT RENDER!
 
-  //Now check the pixel location to see what color is found!
-  GLubyte pixel[4];
-  GLint viewport[4];
-  glGetIntegerv(GL_VIEWPORT, viewport);
+	}
 
-  //Read as unsigned byte.
+	//Now check the pixel location to see what color is found!
+	GLubyte pixel[4];
+	GLint viewport[4];
+	glGetIntegerv(GL_VIEWPORT, viewport);
 
-  glReadPixels(x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
-  picked = -1;
-  for(int i=0; i < counter; i++)
-    {
+	//Read as unsigned byte.
 
-   //   printf("Red value is %d\n", pixel[0]);
-	  //printf("Green value is %d\n", pixel[1]);
-	  //printf("Blue value is %d\n", pixel[2]);
-	  //printf("Alpha value is %d\n", pixel[3]);
-      if(myObjects[i].selectionR == ceil(pixel[0]) && myObjects[i].selectionG == pixel[1]
-         && myObjects[i].selectionB == pixel[2]&& myObjects[i].selectionA == pixel[3])
-        picked = i;
-    }
+	glReadPixels(x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
+	picked = -1;
+	for(int i=0; i < counter; i++)
+	{
 
-  printf("Picked == %d\n", picked);
-  //uncomment below to see the color render
-  // Swap buffers makes the back buffer actually show...in this case, we don't want it to show so we comment out.  For debuggin, youi can uncomment it to see the render of the back buffer which will hold your 'fake color render'
-   //glutSwapBuffers();
+	//   printf("Red value is %d\n", pixel[0]);
+		//printf("Green value is %d\n", pixel[1]);
+		//printf("Blue value is %d\n", pixel[2]);
+		//printf("Alpha value is %d\n", pixel[3]);
+		if(myObjects[i].selectionR == ceil(pixel[0]) && myObjects[i].selectionG == pixel[1]
+			&& myObjects[i].selectionB == pixel[2]&& myObjects[i].selectionA == pixel[3])
+		picked = i;
+	}
+
+	printf("Picked == %d\n", picked);
+	//uncomment below to see the color render
+	// Swap buffers makes the back buffer actually show...in this case, we don't want it to show so we comment out.  For debuggin, youi can uncomment it to see the render of the back buffer which will hold your 'fake color render'
+	//glutSwapBuffers();
+}
+
+//----------------------------------------------------------------------------
+// motion callback - calls when mouse is pressed and dragging in window
+
+//TODO: fill below with appropriate transforms
+//		also possibly need additional state information
+void motion(int x, int y)
+{
+	int xDiff = x - pressedMouseX;
+	int yDiff = y - pressedMouseY;
+
+	if (currentTransformMode == OBJECT_TRANSLATE)
+	{
+
+	}
+	else if (currentTransformMode == OBJECT_ROTATE)
+	{
+
+	}
+	else if (currentTransformMode == OBJECT_SCALE)
+	{
+
+	}
+	else if (currentTransformMode == SCENE_ROTATE_X)
+	{
+		
+	}
+	else if (currentTransformMode == SCENE_ROTATE_Y)
+	{
+
+	}
+	else if (currentTransformMode == SCENE_ROTATE_Z)
+	{
+
+	}
+	else if (currentTransformMode == SCENE_TRANSLATE)
+	{
+
+	}
+	else if (currentTransformMode == SCENE_DOLLY)
+	{
+
+	}
 }
 
 //----------------------------------------------------------------------------
@@ -324,6 +444,14 @@ display( void )
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	//0 is reserved for the background color so skip it.
+
+	// draw plane
+	flag = 0;
+	glUniform1i(SelectFlagLoc, flag);
+	glBindVertexArray(worldPlane.vaoID);
+	glDrawArrays( GL_TRIANGLES, 0, worldPlane.numVertices );
+
+	// draw objects
 	for(int i=0; i < counter; i++)
 	{
 		if (i == picked)
@@ -524,6 +652,7 @@ int main(int argc, char** argv) {
 	makeMenu();
 	glutKeyboardFunc(keyboard);
 	glutMouseFunc(mouse);
+	glutMotionFunc(motion);
 	glutDisplayFunc(display);
 	glutMainLoop();
 
