@@ -27,7 +27,9 @@ typedef Angel::vec4 point4;
 
 //----------------------------------------------------------------------------
 
-GLuint model_view;  // model-view matrix uniform shader variable location
+//GLuint model_view;  // model-view matrix uniform shader variable location
+GLuint model; // model matrix uniform shader variable location 
+GLuint view;  // view matrix uniform shader variable location
 GLuint projection; // projection matrix uniform shader variable location
 
 //----------------------------------------------------------------------------
@@ -85,6 +87,11 @@ struct ObjectInstance {
 	// points and normals
 	point4* points;
 	vec4* normals;
+
+	// transforms
+	mat4 translate;
+	mat4 rotate;
+	mat4 scale;
 };
 
 //An array of the objects that holds their vao ids
@@ -213,6 +220,9 @@ void loadObjectFromFile(string filename)
 	curObject.selectionG=0;
 	curObject.selectionB=0;
 	curObject.selectionA=255;
+	curObject.translate = Translate(0, 0, 0);
+	curObject.rotate = RotateX(0);
+	curObject.scale = Scale(1, 1, 1);
 	myObjects.push_back(curObject);
 	counter++;
 	idcount++;
@@ -298,16 +308,22 @@ void init() {
 	glUniform1i(SelectFlagLoc, flag);
 
 	// Retrieve transformation uniform variable locations
-	model_view = glGetUniformLocation(program, "ModelView");
+	//model_view = glGetUniformLocation(program, "ModelView");
+	model = glGetUniformLocation(program, "Model");
+	view = glGetUniformLocation(program, "View");
 	projection = glGetUniformLocation(program, "Projection");
 
-	//Set up the model_view matrix with LookAt
+	//Set up model matrix
+	mat4 m; // identity
+	glUniformMatrix4fv(model, 1, GL_TRUE, m);
+
+	//Set up the view matrix with LookAt
 	point4 eye(fx, fy, fz, 1.0);
 	point4 at(ax, ay, az, 1.0);
 	vec4 up(ux, uy, uz, 0.0);
 
-	mat4 mv = LookAt(eye, at, up);
-	glUniformMatrix4fv(model_view, 1, GL_TRUE, mv);
+	mat4 v = LookAt(eye, at, up);
+	glUniformMatrix4fv(view, 1, GL_TRUE, v);
 
 	//Setup the view volume
 	mat4 proj;
@@ -443,11 +459,12 @@ void
 display( void )
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//0 is reserved for the background color so skip it.
 
-	// draw plane
+	// draw ground plane
 	flag = 0;
 	glUniform1i(SelectFlagLoc, flag);
+	mat4 m = mat4(); // identity
+	glUniformMatrix4fv(model, 1, GL_TRUE, m);
 	glBindVertexArray(worldPlane.vaoID);
 	glDrawArrays( GL_TRIANGLES, 0, worldPlane.numVertices );
 
@@ -460,6 +477,10 @@ display( void )
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); 
 			glPolygonOffset(1.0, 2); //Try 1.0 and 2 for factor and units
 		}
+
+		//Render transformation
+		mat4 m = myObjects[i].translate * myObjects[i].rotate * myObjects[i].scale;
+		glUniformMatrix4fv(model, 1, GL_TRUE, m);
 
 		//Normal render so set selection Flag to 0
 		flag = 0;
