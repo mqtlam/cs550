@@ -39,6 +39,9 @@ GLuint projection; // projection matrix uniform shader variable location
 
 //----------------------------------------------------------------------------
 
+// Lighting
+point4 light_position;
+
 //---------------------------Camera Stuff------------------------------
 
 GLdouble prot = 45;
@@ -502,7 +505,7 @@ void init() {
 	// Initialize shader lighting parameters
 	// RAM: No need to change these...we'll learn about the details when we
 	// cover Illumination and Shading
-	point4 light_position(1.5, 0.5, 2.0, 1.0);
+	//point4 light_position(1.5, 0.5, 2.0, 1.0);
 	color4 light_ambient(0.2, 0.2, 0.2, 1.0);
 	color4 light_diffuse(1.0, 1.0, 1.0, 1.0);
 	color4 light_specular(1.0, 1.0, 1.0, 1.0);
@@ -1061,6 +1064,11 @@ int main(int argc, char** argv) {
 		fovy = atof(argv[2]);
 		zNear = atof(argv[3]);
 		zFar = atof(argv[4]);
+		
+		float light_x = atof(argv[5]);
+		float light_y = atof(argv[6]);
+		float light_z = atof(argv[7]);
+		light_position = point4(light_x, light_y, light_z, 1.0);
 	} else if (strcmp(argv[1], "O") == 0) {
 		tranformType = orthonormal;
 		left_ = atof(argv[2]);
@@ -1069,6 +1077,11 @@ int main(int argc, char** argv) {
 		top_ = atof(argv[5]);
 		zNear = atof(argv[6]);
 		zFar = atof(argv[7]);
+
+		float light_x = atof(argv[8]);
+		float light_y = atof(argv[9]);
+		float light_z = atof(argv[10]);
+		light_position = point4(light_x, light_y, light_z, 1.0);
 	} else {
 		cerr
 				<< "Usage: ./SimpleProgram (O left right bottom top near far)|(P fov near far)"

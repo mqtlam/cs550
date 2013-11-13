@@ -22,7 +22,7 @@ void main()
     //vec3 pos = (ModelView * vPosition).xyz;
 	vec3 pos = (View * Model * vPosition).xyz;
 
-    vec3 L = normalize( LightPosition.xyz - pos );
+    vec3 L = normalize( (View * LightPosition).xyz - pos );
     vec3 E = normalize( -pos );
     vec3 H = normalize( L + E );
 
