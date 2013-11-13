@@ -148,20 +148,24 @@ int selectedAxis = -1; // -1 = none, 0 = x-axis, 1 = y-axis, 2 = z-axis
 // defines world plane
 class WorldPlane {
 public:
-	static point4 points[6];
-	static vec4 normals[6];
+	point4* points;
+	vec4* normals;
 
 	int vaoID;
 	int numVertices;
 
 	void init() {
+		numVertices = 8 * 8 * 8;
+		points = new point4[numVertices];
+		normals = new vec4[numVertices];
+		makeGrid(points, normals);
+
 		// Create a vertex array object
 		GLuint vao;
 		glGenVertexArrays(1, &vao);
 		glBindVertexArray(vao);
 
 		vaoID = vao;
-		numVertices = 6;
 
 		// Create and initialize a buffer object
 		GLuint buffer;
@@ -185,13 +189,27 @@ public:
 		glVertexAttribPointer(vNormal, 4, GL_FLOAT, GL_FALSE, 0,
 				BUFFER_OFFSET(pointsSize));
 	}
-};
 
-point4 WorldPlane::points[6] = { point4(-1, 0, -1, 1), point4(1, 0, 1, 1),
-		point4(1, 0, -1, 1), point4(-1, 0, 1, 1), point4(1, 0, 1, 1), point4(-1,
-				0, -1, 1) };
-vec4 WorldPlane::normals[6] = { vec4(0, 1, 0, 0), vec4(0, 1, 0, 0), vec4(0, 1,
-		0, 0), vec4(0, 1, 0, 0), vec4(0, 1, 0, 0), vec4(0, 1, 0, 0) };
+	void makeGrid(point4* points, vec4* normals)
+	{
+		const float INCREMENT = 0.25;
+		int index = 0;
+		for (float x = -1; x < 1; x += INCREMENT)
+		{
+			for (float z = -1; z < 1; z += INCREMENT)
+			{
+				points[index] = point4( x, 0, z, 1 ); normals[index] = vec4(0,1,0,0); index++;
+				points[index] = point4( x+INCREMENT, 0, z, 1 ); normals[index] = vec4(0,1,0,0); index++;
+				points[index] = point4( x, 0, z, 1 ); normals[index] = vec4(0,1,0,0); index++;
+				points[index] = point4( x, 0, z+INCREMENT, 1 ); normals[index] = vec4(0,1,0,0); index++;
+				points[index] = point4( x+INCREMENT, 0, z, 1 ); normals[index] = vec4(0,1,0,0); index++;
+				points[index] = point4( x+INCREMENT, 0, z+INCREMENT, 1 ); normals[index] = vec4(0,1,0,0); index++;
+				points[index] = point4( x, 0, z+INCREMENT, 1 ); normals[index] = vec4(0,1,0,0); index++;
+				points[index] = point4( x+INCREMENT, 0, z+INCREMENT, 1 ); normals[index] = vec4(0,1,0,0); index++;
+			}
+		}
+	}
+};
 
 // global variable to keep track of single world plane
 WorldPlane worldPlane = WorldPlane();
@@ -866,7 +884,7 @@ void display(void) {
 	mat4 m = mat4(); // identity
 	glUniformMatrix4fv(model, 1, GL_TRUE, m);
 	glBindVertexArray(worldPlane.vaoID);
-	glDrawArrays( GL_TRIANGLES, 0, worldPlane.numVertices);
+	glDrawArrays( GL_LINES, 0, worldPlane.numVertices );
 
 	// draw objects
 	for (int i = 0; i < counter; i++) {
