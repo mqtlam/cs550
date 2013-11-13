@@ -148,6 +148,8 @@ int selectedAxis = -1; // -1 = none, 0 = x-axis, 1 = y-axis, 2 = z-axis
 // defines world plane
 class WorldPlane {
 public:
+	static const int DIVISIONS = 8;
+
 	point4* points;
 	vec4* normals;
 
@@ -155,7 +157,7 @@ public:
 	int numVertices;
 
 	void init() {
-		numVertices = 8 * 8 * 8;
+		numVertices = DIVISIONS * DIVISIONS * 8; // grid * 8 vertices for a square
 		points = new point4[numVertices];
 		normals = new vec4[numVertices];
 		makeGrid(points, normals);
@@ -192,7 +194,7 @@ public:
 
 	void makeGrid(point4* points, vec4* normals)
 	{
-		const float INCREMENT = 0.25;
+		const float INCREMENT = 2.0/DIVISIONS;
 		int index = 0;
 		for (float x = -1; x < 1; x += INCREMENT)
 		{
