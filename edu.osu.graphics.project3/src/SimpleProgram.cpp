@@ -61,12 +61,7 @@ enum ObjectTransformMode {
 };
 
 enum SceneTransformMode {
-	SCENE_ROTATE_X,
-	SCENE_ROTATE_Y,
-	SCENE_ROTATE_Z,
-	SCENE_TRANSLATE,
-	SCENE_DOLLY,
-	SCENE_NONE
+	SCENE_ROTATE, SCENE_TRANSLATE, SCENE_DOLLY, SCENE_NONE
 };
 
 // global variable to store current transform modes
@@ -192,22 +187,35 @@ public:
 				BUFFER_OFFSET(pointsSize));
 	}
 
-	void makeGrid(point4* points, vec4* normals)
-	{
-		const float INCREMENT = 2.0/DIVISIONS;
+	void makeGrid(point4* points, vec4* normals) {
+		const float INCREMENT = 2.0 / DIVISIONS;
 		int index = 0;
-		for (float x = -1; x < 1; x += INCREMENT)
-		{
-			for (float z = -1; z < 1; z += INCREMENT)
-			{
-				points[index] = point4( x, 0, z, 1 ); normals[index] = vec4(0,1,0,0); index++;
-				points[index] = point4( x+INCREMENT, 0, z, 1 ); normals[index] = vec4(0,1,0,0); index++;
-				points[index] = point4( x, 0, z, 1 ); normals[index] = vec4(0,1,0,0); index++;
-				points[index] = point4( x, 0, z+INCREMENT, 1 ); normals[index] = vec4(0,1,0,0); index++;
-				points[index] = point4( x+INCREMENT, 0, z, 1 ); normals[index] = vec4(0,1,0,0); index++;
-				points[index] = point4( x+INCREMENT, 0, z+INCREMENT, 1 ); normals[index] = vec4(0,1,0,0); index++;
-				points[index] = point4( x, 0, z+INCREMENT, 1 ); normals[index] = vec4(0,1,0,0); index++;
-				points[index] = point4( x+INCREMENT, 0, z+INCREMENT, 1 ); normals[index] = vec4(0,1,0,0); index++;
+		for (float x = -1; x < 1; x += INCREMENT) {
+			for (float z = -1; z < 1; z += INCREMENT) {
+				points[index] = point4(x, 0, z, 1);
+				normals[index] = vec4(0, 1, 0, 0);
+				index++;
+				points[index] = point4(x + INCREMENT, 0, z, 1);
+				normals[index] = vec4(0, 1, 0, 0);
+				index++;
+				points[index] = point4(x, 0, z, 1);
+				normals[index] = vec4(0, 1, 0, 0);
+				index++;
+				points[index] = point4(x, 0, z + INCREMENT, 1);
+				normals[index] = vec4(0, 1, 0, 0);
+				index++;
+				points[index] = point4(x + INCREMENT, 0, z, 1);
+				normals[index] = vec4(0, 1, 0, 0);
+				index++;
+				points[index] = point4(x + INCREMENT, 0, z + INCREMENT, 1);
+				normals[index] = vec4(0, 1, 0, 0);
+				index++;
+				points[index] = point4(x, 0, z + INCREMENT, 1);
+				normals[index] = vec4(0, 1, 0, 0);
+				index++;
+				points[index] = point4(x + INCREMENT, 0, z + INCREMENT, 1);
+				normals[index] = vec4(0, 1, 0, 0);
+				index++;
 			}
 		}
 	}
@@ -727,7 +735,7 @@ void display();
 //TODO: fill below with appropriate transforms
 //		also possibly need additional state information
 void motion(int x, int y) {
-	float adjust = 0.0001;
+	float adjust = 0.001;
 	float xDiff = (x - prevMouseX) * adjust;
 	float yDiff = -(y - prevMouseY) * adjust;
 	float zDiff = -(x - prevMouseX) * adjust;
@@ -769,7 +777,8 @@ void motion(int x, int y) {
 		}
 		myObjects[picked].translate = myObjects[picked].translate
 				* Translate(xDiff, yDiff, zDiff);
-
+		prevMouseX = x;
+		prevMouseY = y;
 	} else if (currentModelTransformMode == OBJECT_ROTATE) {
 		switch (selectedAxis) {
 		case -1:
@@ -807,14 +816,13 @@ void motion(int x, int y) {
 			break;
 		}
 
-	} else if (currentViewTransformMode == SCENE_ROTATE_X) {
+	} else if (currentViewTransformMode == SCENE_ROTATE) {
 		trot += (x - prevMouseX) / 2;
 		if (trot > 360)
 			trot -= 360;
 		if (trot < 0)
 			trot += 360;
 		prevMouseX = x;
-
 		prot += (y - prevMouseY) / 2;
 		if (prot < -90)
 			prot = -90;
@@ -822,11 +830,10 @@ void motion(int x, int y) {
 			prot = 90;
 		prevMouseY = y;
 
+		fx = r * cos(prot * deg) * cos(trot * deg);
+		fy = r * sin(prot * deg);
+		fz = r * cos(prot * deg) * sin(trot * deg);
 		glutPostRedisplay();
-
-	} else if (currentViewTransformMode == SCENE_ROTATE_Y) {
-
-	} else if (currentViewTransformMode == SCENE_ROTATE_Z) {
 
 	} else if (currentViewTransformMode == SCENE_TRANSLATE) {
 
@@ -872,8 +879,7 @@ void display(void) {
 	view = glGetUniformLocation(mainShaderProgram, "View");
 
 	//Set up the view matrix with LookAt
-	point4 eye(r * cos(prot * deg) * cos(trot * deg), r * sin(prot * deg),
-			r * cos(prot * deg) * sin(trot * deg), 1.0);
+	point4 eye(fx, fy, fz, 1.0);
 	point4 at(ax, ay, az, 1.0);
 	vec4 up(ux, uy, uz, 0.0);
 
@@ -886,7 +892,7 @@ void display(void) {
 	mat4 m = mat4(); // identity
 	glUniformMatrix4fv(model, 1, GL_TRUE, m);
 	glBindVertexArray(worldPlane.vaoID);
-	glDrawArrays( GL_LINES, 0, worldPlane.numVertices );
+	glDrawArrays( GL_LINES, 0, worldPlane.numVertices);
 
 	// draw objects
 	for (int i = 0; i < counter; i++) {
@@ -992,30 +998,19 @@ void objMenuCallback(int id) {
 
 void sceneMenuCallback(int id) {
 	if (id == 1) {
+		cout << "Switched to SCENE Rotate mode." << endl;
+		currentViewTransformMode = SCENE_ROTATE;
+		currentModelTransformMode = OBJECT_NONE;
+	} else if (id == 2) {
 		cout << "Switched to SCENE TRANSLATE mode." << endl;
 		currentViewTransformMode = SCENE_TRANSLATE;
 		currentModelTransformMode = OBJECT_NONE;
-	} else if (id == 2) {
+	} else if (id == 3) {
 		cout << "Switched to SCENE DOLLY mode." << endl;
 		currentViewTransformMode = SCENE_DOLLY;
 		currentModelTransformMode = OBJECT_NONE;
 	}
-}
 
-void sceneRotateMenuCallback(int id) {
-	if (id == 1) {
-		cout << "Switched to SCENE ROTATE X mode." << endl;
-		currentViewTransformMode = SCENE_ROTATE_X;
-		currentModelTransformMode = OBJECT_NONE;
-	} else if (id == 2) {
-		cout << "Switched to SCENE ROTATE Y mode." << endl;
-		currentViewTransformMode = SCENE_ROTATE_Y;
-		currentModelTransformMode = OBJECT_NONE;
-	} else if (id == 3) {
-		cout << "Switched to SCENE ROTATE Z mode." << endl;
-		currentViewTransformMode = SCENE_ROTATE_Z;
-		currentModelTransformMode = OBJECT_NONE;
-	}
 }
 
 // This creates the menu/submenus
@@ -1025,15 +1020,10 @@ void makeMenu() {
 	glutAddMenuEntry("Rotation", 2);
 	glutAddMenuEntry("Scale", 3);
 
-	int sceneRotateSubMenu = glutCreateMenu(sceneRotateMenuCallback);
-	glutAddMenuEntry("X", 1);
-	glutAddMenuEntry("Y", 2);
-	glutAddMenuEntry("Z", 3);
-
 	int sceneTransformSubMenu = glutCreateMenu(sceneMenuCallback);
-	glutAddSubMenu("Rotation", sceneRotateSubMenu);
-	glutAddMenuEntry("Translation", 1);
-	glutAddMenuEntry("Dolly", 2);
+	glutAddMenuEntry("Rotation", 1);
+	glutAddMenuEntry("Translation", 2);
+	glutAddMenuEntry("Dolly", 3);
 
 	int menu = glutCreateMenu(mainMenuCallback);
 	glutAddMenuEntry("Load .obj File", 1);
