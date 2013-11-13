@@ -10,6 +10,7 @@ uniform mat4 Projection;
 uniform vec4 LightPosition;
 uniform float Shininess;
 uniform int flag;
+uniform int manipulatorFlag;
 uniform int selectionColorR;
 uniform int selectionColorG;
 uniform int selectionColorB;
@@ -45,15 +46,39 @@ void main()
     //gl_Position = Projection * ModelView * vPosition;
 	gl_Position = Projection * View * Model * vPosition;
 
-   if(flag != 1){
-	color = ambient + diffuse + specular;
-	color.a = 1.0;
-	} else {
-	       	color.r = float(selectionColorR)/float(255);
-	       	color.g = float(selectionColorG)/float(255);
-		color.b = float(selectionColorB)/float(255);
-		color.a = float(selectionColorA)/float(255);
+	if (manipulatorFlag == 1) // hard code x-axis color
+	{
+		color.r = float(255);
+		color.g = float(0);
+		color.b = float(0);
+		color.a = float(255);
+	}
+	else if (manipulatorFlag == 2) // hard code y-axis color
+	{
+		color.r = float(0);
+		color.g = float(255);
+		color.b = float(0);
+		color.a = float(255);
+	}
+	else if (manipulatorFlag == 3) // hard code z-axis color
+	{
+		color.r = float(0);
+		color.g = float(0);
+		color.b = float(255);
+		color.a = float(255);
+	}
+	else
+	{
+	   if(flag != 1){
+		color = ambient + diffuse + specular;
+		color.a = 1.0;
+		} else {
+	       		color.r = float(selectionColorR)/float(255);
+	       		color.g = float(selectionColorG)/float(255);
+			color.b = float(selectionColorB)/float(255);
+			color.a = float(selectionColorA)/float(255);
 
 
+		}
 	}
 }

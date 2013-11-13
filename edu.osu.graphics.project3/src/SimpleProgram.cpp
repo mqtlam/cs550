@@ -49,7 +49,7 @@ enum TransformMode {
 	SCENE_ROTATE_X, SCENE_ROTATE_Y, SCENE_ROTATE_Z, SCENE_TRANSLATE, SCENE_DOLLY
 };
 
-// global variable to store current mode
+// global variable to store current transform mode
 TransformMode currentTransformMode = OBJECT_TRANSLATE;
 
 //----------------------------------------------------------------------------
@@ -103,7 +103,6 @@ int idcount = 200; // initial color
 int counter = 0; // initial counter
 
 //selection state variables
-GLuint program;
 GLuint selectionColorR, selectionColorG, selectionColorB, selectionColorA;
 int picked = -1;
 GLint flag = 0;
@@ -113,9 +112,15 @@ GLuint SelectColorRLoc, SelectColorGLoc, SelectColorBLoc, SelectColorALoc;
 //----------------------------------------------------------------------------
 // other state information
 
+// shader programs
+GLuint mainShaderProgram;
+
 // mouse state information
 bool isMousePressed = false;
 int pressedMouseX, pressedMouseY;
+
+// keeps track of the currently selected axis
+int selectedAxis = -1; // -1 = none, 0 = x-axis, 1 = y-axis, 2 = z-axis
 
 //----------------------------------------------------------------------------
 
@@ -151,12 +156,12 @@ public:
 		glBufferSubData( GL_ARRAY_BUFFER, pointsSize, normalzSize, normals);
 
 		// set up vertex arrays
-		GLuint vPosition = glGetAttribLocation(program, "vPosition");
+		GLuint vPosition = glGetAttribLocation(mainShaderProgram, "vPosition");
 		glEnableVertexAttribArray(vPosition);
 		glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0,
 				BUFFER_OFFSET(0));
 
-		GLuint vNormal = glGetAttribLocation(program, "vNormal");
+		GLuint vNormal = glGetAttribLocation(mainShaderProgram, "vNormal");
 		glEnableVertexAttribArray(vNormal);
 		glVertexAttribPointer(vNormal, 4, GL_FLOAT, GL_FALSE, 0,
 				BUFFER_OFFSET(pointsSize));
@@ -170,6 +175,181 @@ vec4 WorldPlane::normals[6] = { vec4(0,1,0,0), vec4(0,1,0,0),
 
 // global variable to keep track of single world plane
 WorldPlane worldPlane = WorldPlane();
+
+//----------------------------------------------------------------------------
+
+struct Manipulator {
+	static point4 cube[8];
+
+	// axes
+	static point4 xAxis[2];
+	static point4 yAxis[2];
+	static point4 zAxis[2];
+
+	// tips
+	point4* xTip;
+	point4* yTip;
+	point4* zTip;
+
+	int xVaoID;
+	int xNumVertices;
+
+	int yVaoID;
+	int yNumVertices;
+
+	int zVaoID;
+	int zNumVertices;
+
+	// selection stuff
+	GLubyte xSelectionR;
+	GLubyte xSelectionG;
+	GLubyte xSelectionB;
+	GLubyte xSelectionA;
+	GLubyte ySelectionR;
+	GLubyte ySelectionG;
+	GLubyte ySelectionB;
+	GLubyte ySelectionA;
+	GLubyte zSelectionR;
+	GLubyte zSelectionG;
+	GLubyte zSelectionB;
+	GLubyte zSelectionA;
+
+	void init()
+	{
+		xSelectionR = 0;
+		xSelectionG = 200;
+		xSelectionB = 0;
+		xSelectionA = 255;
+		ySelectionR = 0;
+		ySelectionG = 201;
+		ySelectionB = 0;
+		ySelectionA = 255;
+		zSelectionR = 0;
+		zSelectionG = 202;
+		zSelectionB = 0;
+		zSelectionA = 255;
+
+		// --- X-AXIS
+		xTip = new point4[36];
+		colorcube(xTip, Translate(1, 0, 0));
+
+		// Create a vertex array object
+		GLuint xVao;
+		glGenVertexArrays(1, &xVao);
+		glBindVertexArray(xVao);
+
+		xVaoID = xVao;
+		xNumVertices = 2 + 36;
+
+		// Create and initialize a buffer object
+		GLuint xBuffer;
+		glGenBuffers(1, &xBuffer);
+		glBindBuffer( GL_ARRAY_BUFFER, xBuffer);
+		glBufferData( GL_ARRAY_BUFFER, xNumVertices * sizeof(point4), NULL, GL_STATIC_DRAW);
+		glBufferSubData( GL_ARRAY_BUFFER, 0, 2 * sizeof(point4), xAxis);
+		glBufferSubData( GL_ARRAY_BUFFER, 2 * sizeof(point4), 36 * sizeof(point4), xTip);
+
+		// set up vertex arrays
+		GLuint vPosition = glGetAttribLocation(mainShaderProgram, "vPosition");
+		glEnableVertexAttribArray(vPosition);
+		glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0,
+				BUFFER_OFFSET(0));
+
+		// --- Y-AXIS
+		yTip = new point4[36];
+		colorcube(yTip, Translate(0, 1, 0));
+
+		// Create a vertex array object
+		GLuint yVao;
+		glGenVertexArrays(1, &yVao);
+		glBindVertexArray(yVao);
+
+		yVaoID = yVao;
+		yNumVertices = 2 + 36;
+
+		// Create and initialize a buffer object
+		GLuint yBuffer;
+		glGenBuffers(1, &yBuffer);
+		glBindBuffer( GL_ARRAY_BUFFER, yBuffer);
+		glBufferData( GL_ARRAY_BUFFER, yNumVertices * sizeof(point4), NULL, GL_STATIC_DRAW);
+		glBufferSubData( GL_ARRAY_BUFFER, 0, 2 * sizeof(point4), yAxis);
+		glBufferSubData( GL_ARRAY_BUFFER, 2 * sizeof(point4), 36 * sizeof(point4), yTip);
+
+		// set up vertex arrays
+		vPosition = glGetAttribLocation(mainShaderProgram, "vPosition");
+		glEnableVertexAttribArray(vPosition);
+		glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0,
+				BUFFER_OFFSET(0));
+
+		// --- Z-AXIS
+		zTip = new point4[36];
+		colorcube(zTip, Translate(0, 0, 1));
+
+		// Create a vertex array object
+		GLuint zVao;
+		glGenVertexArrays(1, &zVao);
+		glBindVertexArray(zVao);
+
+		zVaoID = zVao;
+		zNumVertices = 2 + 36;
+
+		// Create and initialize a buffer object
+		GLuint zBuffer;
+		glGenBuffers(1, &zBuffer);
+		glBindBuffer( GL_ARRAY_BUFFER, zBuffer);
+		glBufferData( GL_ARRAY_BUFFER, zNumVertices * sizeof(point4), NULL, GL_STATIC_DRAW);
+		glBufferSubData( GL_ARRAY_BUFFER, 0, 2 * sizeof(point4), zAxis);
+		glBufferSubData( GL_ARRAY_BUFFER, 2 * sizeof(point4), 36 * sizeof(point4), zTip);
+
+		// set up vertex arrays
+		vPosition = glGetAttribLocation(mainShaderProgram, "vPosition");
+		glEnableVertexAttribArray(vPosition);
+		glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0,
+				BUFFER_OFFSET(0));
+	}
+
+	void colorcube(point4* points, mat4 translate)
+	{
+		int index = 0;
+		quad( points, index, translate, 4, 5, 6, 7 );
+		quad( points, index, translate, 5, 4, 0, 1 );
+		quad( points, index, translate, 1, 0, 3, 2 );
+		quad( points, index, translate, 2, 3, 7, 6 );
+		quad( points, index, translate, 3, 0, 4, 7 );
+		quad( points, index, translate, 6, 5, 1, 2 );
+	}
+
+	void quad( point4* points, int& index, mat4 translate, int a, int b, int c, int d )
+	{
+		points[index] = translate*cube[a]; index++;
+		points[index] = translate*cube[b]; index++;
+		points[index] = translate*cube[c]; index++;
+		points[index] = translate*cube[a]; index++;
+		points[index] = translate*cube[c]; index++;
+		points[index] = translate*cube[d]; index++;
+	}
+};
+
+point4 Manipulator::xAxis[2] = { point4(0,0,0,1), point4(1,0,0,1) };
+point4 Manipulator::yAxis[2] = { point4(0,0,0,1), point4(0,1,0,1) };
+point4 Manipulator::zAxis[2] = { point4(0,0,0,1), point4(0,0,1,1) };
+
+point4 Manipulator::cube[8] = {
+    point4( -0.05, -0.05,  0.05, 1.0 ),
+    point4( -0.05,  0.05,  0.05, 1.0 ),
+    point4(  0.05,  0.05,  0.05, 1.0 ),
+    point4(  0.05, -0.05,  0.05, 1.0 ),
+    point4( -0.05, -0.05, -0.05, 1.0 ),
+    point4( -0.05,  0.05, -0.05, 1.0 ),
+    point4(  0.05,  0.05, -0.05, 1.0 ),
+    point4(  0.05, -0.05, -0.05, 1.0 )
+};
+
+// global variable to keep track of single world plane
+Manipulator manipulator = Manipulator();
+
+// location of flag for manipulator color
+GLuint manipulatorFlagLoc;
 
 //----------------------------------------------------------------------------
 
@@ -239,12 +419,12 @@ void loadObjectFromFile(string filename)
 	glBufferSubData( GL_ARRAY_BUFFER, pointsSize, normalzSize, curObject.normals);
 
 	// set up vertex arrays
-	GLuint vPosition = glGetAttribLocation(program, "vPosition");
+	GLuint vPosition = glGetAttribLocation(mainShaderProgram, "vPosition");
 	glEnableVertexAttribArray(vPosition);
 	glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, 0,
 			BUFFER_OFFSET(0));
 
-	GLuint vNormal = glGetAttribLocation(program, "vNormal");
+	GLuint vNormal = glGetAttribLocation(mainShaderProgram, "vNormal");
 	glEnableVertexAttribArray(vNormal);
 	glVertexAttribPointer(vNormal, 4, GL_FLOAT, GL_FALSE, 0,
 			BUFFER_OFFSET(pointsSize));
@@ -255,12 +435,13 @@ void loadObjectFromFile(string filename)
 // OpenGL initialization
 void init() {
 	// Load shaders and use the resulting shader program
-	program = InitShader("shaders/vshader.glsl", "shaders/fshader.glsl");
-	glUseProgram(program);
+	mainShaderProgram = InitShader("shaders/vshader.glsl", "shaders/fshader.glsl");
+	glUseProgram(mainShaderProgram);
 
 	// initialize world plane
 	worldPlane.init();
-
+	manipulator.init();
+	
 	// TODO for debugging convenience; final = remove below
 	//loadObjectFromFile("data/bunnyS.obj");
 
@@ -281,37 +462,40 @@ void init() {
 	color4 diffuse_product = light_diffuse * material_diffuse;
 	color4 specular_product = light_specular * material_specular;
 
-	glUniform4fv( glGetUniformLocation(program, "AmbientProduct"), 1,
+	glUniform4fv( glGetUniformLocation(mainShaderProgram, "AmbientProduct"), 1,
 			ambient_product);
-	glUniform4fv( glGetUniformLocation(program, "DiffuseProduct"), 1,
+	glUniform4fv( glGetUniformLocation(mainShaderProgram, "DiffuseProduct"), 1,
 			diffuse_product);
-	glUniform4fv( glGetUniformLocation(program, "SpecularProduct"), 1,
+	glUniform4fv( glGetUniformLocation(mainShaderProgram, "SpecularProduct"), 1,
 			specular_product);
 
-	glUniform4fv( glGetUniformLocation(program, "LightPosition"), 1,
+	glUniform4fv( glGetUniformLocation(mainShaderProgram, "LightPosition"), 1,
 			light_position);
 
-	glUniform1f( glGetUniformLocation(program, "Shininess"),
+	glUniform1f( glGetUniformLocation(mainShaderProgram, "Shininess"),
 			material_shininess);
 
 	//Set up selection colors and a flag
-	SelectColorRLoc = glGetUniformLocation(program,"selectionColorR");
-	SelectColorGLoc = glGetUniformLocation(program,"selectionColorG");
-	SelectColorBLoc = glGetUniformLocation(program,"selectionColorB");
-	SelectColorALoc = glGetUniformLocation(program,"selectionColorA");
+	SelectColorRLoc = glGetUniformLocation(mainShaderProgram,"selectionColorR");
+	SelectColorGLoc = glGetUniformLocation(mainShaderProgram,"selectionColorG");
+	SelectColorBLoc = glGetUniformLocation(mainShaderProgram,"selectionColorB");
+	SelectColorALoc = glGetUniformLocation(mainShaderProgram,"selectionColorA");
 	glUniform1i(SelectColorRLoc, selectionColorR);
 	glUniform1i(SelectColorGLoc, selectionColorG);
 	glUniform1i(SelectColorBLoc, selectionColorB);
 	glUniform1i(SelectColorALoc, selectionColorA);
 
-	SelectFlagLoc = glGetUniformLocation(program, "flag");
+	SelectFlagLoc = glGetUniformLocation(mainShaderProgram, "flag");
 	glUniform1i(SelectFlagLoc, flag);
+
+	manipulatorFlagLoc = glGetUniformLocation(mainShaderProgram, "manipulatorFlag");
+	glUniform1i(manipulatorFlagLoc, 0);
 
 	// Retrieve transformation uniform variable locations
 	//model_view = glGetUniformLocation(program, "ModelView");
-	model = glGetUniformLocation(program, "Model");
-	view = glGetUniformLocation(program, "View");
-	projection = glGetUniformLocation(program, "Projection");
+	model = glGetUniformLocation(mainShaderProgram, "Model");
+	view = glGetUniformLocation(mainShaderProgram, "View");
+	projection = glGetUniformLocation(mainShaderProgram, "Projection");
 
 	//Set up model matrix
 	mat4 m; // identity
@@ -335,6 +519,7 @@ void init() {
 
 	glUniformMatrix4fv(projection, 1, GL_TRUE, proj);
 
+	// z buffer stuff
 	glEnable( GL_DEPTH_TEST);
 	glClearColor(1.0, 1.0, 1.0, 1.0);
 }
@@ -376,11 +561,70 @@ mouse( int button, int state, int x, int y )
 		glUniform1i(SelectColorALoc,selectionColorA);
 		glUniform1i(SelectFlagLoc, flag);
 
+		// properly transform object before drawing it
+		mat4 m = myObjects[i].translate * myObjects[i].rotate * myObjects[i].scale;
+		glUniformMatrix4fv(model, 1, GL_TRUE, m);
+
 		//Draw the scene.  The flag will force shader to not use shading, but instead use a constant color
 		glDrawArrays( GL_TRIANGLES, 0, myObjects[i].numVertices );
 		glutPostRedisplay();  //MUST REMEMBER TO CALL POST REDISPLAY OR IT WONT RENDER!
 
 	}
+
+	// MANIPULATOR STUFF
+	if (picked != -1)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			flag = 1;
+
+			int numVertices;
+			if (i == 0) // x-axis
+			{
+				glBindVertexArray(manipulator.xVaoID);
+				selectionColorR = manipulator.xSelectionR;
+				selectionColorG = manipulator.xSelectionG;
+				selectionColorB = manipulator.xSelectionB;
+				selectionColorA = manipulator.xSelectionA;
+				numVertices = manipulator.xNumVertices;
+			}
+			else if (i == 1) // y-axis
+			{
+				glBindVertexArray(manipulator.yVaoID);
+				selectionColorR = manipulator.ySelectionR;
+				selectionColorG = manipulator.ySelectionG;
+				selectionColorB = manipulator.ySelectionB;
+				selectionColorA = manipulator.ySelectionA;
+				numVertices = manipulator.yNumVertices;
+			}
+			else if (i == 2) // z-axis
+			{
+				glBindVertexArray(manipulator.zVaoID);
+				selectionColorR = manipulator.zSelectionR;
+				selectionColorG = manipulator.zSelectionG;
+				selectionColorB = manipulator.zSelectionB;
+				selectionColorA = manipulator.zSelectionA;
+				numVertices = manipulator.zNumVertices;
+			}
+
+			//sync with shader
+			glUniform1i(SelectColorRLoc,selectionColorR);
+			glUniform1i(SelectColorGLoc,selectionColorG);
+			glUniform1i(SelectColorBLoc,selectionColorB);
+			glUniform1i(SelectColorALoc,selectionColorA);
+			glUniform1i(SelectFlagLoc, flag);
+
+			// properly transform object before drawing it
+			mat4 m = myObjects[picked].translate;
+			glUniformMatrix4fv(model, 1, GL_TRUE, m);
+
+			//Draw the scene.  The flag will force shader to not use shading, but instead use a constant color
+			glDrawArrays( GL_TRIANGLES, 0, numVertices );
+			glutPostRedisplay();  //MUST REMEMBER TO CALL POST REDISPLAY OR IT WONT RENDER!
+		}
+	}
+
+	// END MANIPULATOR STUFF
 
 	//Now check the pixel location to see what color is found!
 	GLubyte pixel[4];
@@ -390,20 +634,37 @@ mouse( int button, int state, int x, int y )
 	//Read as unsigned byte.
 
 	glReadPixels(x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
-	picked = -1;
-	for(int i=0; i < counter; i++)
-	{
 
-	//   printf("Red value is %d\n", pixel[0]);
-		//printf("Green value is %d\n", pixel[1]);
-		//printf("Blue value is %d\n", pixel[2]);
-		//printf("Alpha value is %d\n", pixel[3]);
-		if(myObjects[i].selectionR == ceil(pixel[0]) && myObjects[i].selectionG == pixel[1]
-			&& myObjects[i].selectionB == pixel[2]&& myObjects[i].selectionA == pixel[3])
-		picked = i;
+	int prevSelectedAxis = selectedAxis;
+	selectedAxis = -1;
+
+	if (picked != -1)
+	{
+		if(manipulator.xSelectionR == ceil(pixel[0]) && manipulator.xSelectionG == pixel[1]
+			&& manipulator.xSelectionB == pixel[2]&& manipulator.xSelectionA == pixel[3])
+			selectedAxis = 0;
+		else if(manipulator.ySelectionR == ceil(pixel[0]) && manipulator.ySelectionG == pixel[1]
+			&& manipulator.ySelectionB == pixel[2]&& manipulator.ySelectionA == pixel[3])
+			selectedAxis = 1;
+		else if(manipulator.zSelectionR == ceil(pixel[0]) && manipulator.zSelectionG == pixel[1]
+			&& manipulator.zSelectionB == pixel[2]&& manipulator.zSelectionA == pixel[3])
+			selectedAxis = 2;
 	}
 
-	printf("Picked == %d\n", picked);
+	// if we just selected the axis or it was already selected, then keep the picked object
+	if (selectedAxis == -1 && prevSelectedAxis == -1)
+	{
+		picked = -1;
+		for(int i=0; i < counter; i++)
+		{
+			if(myObjects[i].selectionR == ceil(pixel[0]) && myObjects[i].selectionG == pixel[1]
+				&& myObjects[i].selectionB == pixel[2]&& myObjects[i].selectionA == pixel[3])
+				picked = i;
+		}
+	}
+
+	printf("Picked == %d, ", picked);
+	printf("Selected Axis == %d\n", selectedAxis);
 	//uncomment below to see the color render
 	// Swap buffers makes the back buffer actually show...in this case, we don't want it to show so we comment out.  For debuggin, youi can uncomment it to see the render of the back buffer which will hold your 'fake color render'
 	//glutSwapBuffers();
@@ -455,12 +716,40 @@ void motion(int x, int y)
 
 //----------------------------------------------------------------------------
 
+void drawManipulator(mat4 m)
+{
+	flag = 0;
+	glUniform1i(SelectFlagLoc, flag);
+
+	// apply model transformation (just translation from origin)
+	glUniformMatrix4fv(model, 1, GL_TRUE, m);
+
+	// draw x axis
+	glBindVertexArray(manipulator.xVaoID);
+	glUniform1i(manipulatorFlagLoc, 1);
+	glDrawArrays(GL_LINES, 0, 2);
+	glDrawArrays(GL_TRIANGLES, 2, 36);
+
+	// draw y axis
+	glBindVertexArray(manipulator.yVaoID);
+	glUniform1i(manipulatorFlagLoc, 2);
+	glDrawArrays(GL_LINES, 0, 2);
+	glDrawArrays(GL_TRIANGLES, 2, 36);
+
+	// draw z axis
+	glBindVertexArray(manipulator.zVaoID);
+	glUniform1i(manipulatorFlagLoc, 3);
+	glDrawArrays(GL_LINES, 0, 2);
+	glDrawArrays(GL_TRIANGLES, 2, 36);
+}
+
 void
 display( void )
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// draw ground plane
+	glUniform1i(manipulatorFlagLoc, 0);
 	flag = 0;
 	glUniform1i(SelectFlagLoc, flag);
 	mat4 m = mat4(); // identity
@@ -473,6 +762,9 @@ display( void )
 	{
 		if (i == picked)
 		{
+			// draw manipulator
+			drawManipulator(myObjects[i].translate);
+
 			// draw in wireframe mode
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); 
 			glPolygonOffset(1.0, 2); //Try 1.0 and 2 for factor and units
@@ -480,6 +772,12 @@ display( void )
 
 		//Render transformation
 		mat4 m = myObjects[i].translate * myObjects[i].rotate * myObjects[i].scale;
+		glUniformMatrix4fv(model, 1, GL_TRUE, m);
+
+		// turn off manipulator flag
+		glUniform1i(manipulatorFlagLoc, 0);
+
+		//Render transformation
 		glUniformMatrix4fv(model, 1, GL_TRUE, m);
 
 		//Normal render so set selection Flag to 0
