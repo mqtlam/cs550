@@ -754,6 +754,7 @@ void motion(int x, int y) {
 	} else if (selectedAxis == 2 && xDiff > 0) {
 		scale = 0.9;
 	}
+
 	if (currentModelTransformMode == OBJECT_TRANSLATE) {
 		switch (selectedAxis) {
 		case -1:
@@ -836,9 +837,19 @@ void motion(int x, int y) {
 		glutPostRedisplay();
 
 	} else if (currentViewTransformMode == SCENE_TRANSLATE) {
-
+		fx += xDiff * 10;
+		fy += yDiff * 10;
+		ax += xDiff * 10;
+		ay += yDiff * 10;
+		prevMouseX = x;
+		prevMouseY = y;
+		glutPostRedisplay();
 	} else if (currentViewTransformMode == SCENE_DOLLY) {
-
+		float oldFz = fz;
+		fz += zDiff;
+		fx = (fz * fx) / oldFz;
+		fy = (fz * fy) / oldFz;
+		glutPostRedisplay();
 	}
 
 	display();
@@ -877,7 +888,7 @@ void display(void) {
 
 	//  Set camera position and orientation.
 	view = glGetUniformLocation(mainShaderProgram, "View");
-
+	cout << "fx:" << fx << "fy:" << fy << "fz:" << fz << endl;
 	//Set up the view matrix with LookAt
 	point4 eye(fx, fy, fz, 1.0);
 	point4 at(ax, ay, az, 1.0);
