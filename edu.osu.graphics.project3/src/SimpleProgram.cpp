@@ -2,6 +2,10 @@
 
 //Includes vec, mat, and other include files as well as macro defs
 #define GL3_PROTOTYPES
+#define PI 3.14159265358979323846
+#define PI_DIV_180 0.017453292519943296
+
+#define deg PI_DIV_180
 
 // COMMENT OR UNCOMMENT LINE BELOW DEPENDING ON PLATFORM
 //#define USE_WINDOWS
@@ -17,6 +21,7 @@
 #endif
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #ifdef __APPLE__
 #  include <OpenGL/gl3.h>
 #endif
@@ -28,12 +33,19 @@ typedef Angel::vec4 point4;
 //----------------------------------------------------------------------------
 
 //GLuint model_view;  // model-view matrix uniform shader variable location
-GLuint model; // model matrix uniform shader variable location 
+GLuint model; // model matrix uniform shader variable location
 GLuint view;  // view matrix uniform shader variable location
 GLuint projection; // projection matrix uniform shader variable location
 
 //----------------------------------------------------------------------------
 
+//---------------------------Camera Stuff------------------------------
+
+GLdouble prot = 45;
+GLdouble trot = 45;
+double r = 3;
+
+//---------------------------------------------------------
 // define projection types
 enum ProjectionType {
 	perspective, orthonormal
@@ -45,16 +57,21 @@ ProjectionType tranformType = perspective;
 
 // define all the transformation modes
 enum ObjectTransformMode {
-	OBJECT_TRANSLATE, OBJECT_ROTATE, OBJECT_SCALE,
+	OBJECT_TRANSLATE, OBJECT_ROTATE, OBJECT_SCALE, OBJECT_NONE
 };
 
 enum SceneTransformMode {
-	SCENE_ROTATE_X, SCENE_ROTATE_Y, SCENE_ROTATE_Z, SCENE_TRANSLATE, SCENE_DOLLY
+	SCENE_ROTATE_X,
+	SCENE_ROTATE_Y,
+	SCENE_ROTATE_Z,
+	SCENE_TRANSLATE,
+	SCENE_DOLLY,
+	SCENE_NONE
 };
 
 // global variable to store current transform modes
-ObjectTransformMode currentModelTransformMode = OBJECT_TRANSLATE;
-SceneTransformMode currentViewTransformMode = SCENE_ROTATE_X;
+ObjectTransformMode currentModelTransformMode = OBJECT_NONE;
+SceneTransformMode currentViewTransformMode = SCENE_NONE;
 
 //----------------------------------------------------------------------------
 
@@ -129,8 +146,7 @@ int selectedAxis = -1; // -1 = none, 0 = x-axis, 1 = y-axis, 2 = z-axis
 //----------------------------------------------------------------------------
 
 // defines world plane
-class WorldPlane
-{
+class WorldPlane {
 public:
 	static point4 points[6];
 	static vec4 normals[6];
@@ -138,8 +154,7 @@ public:
 	int vaoID;
 	int numVertices;
 
-	void init()
-	{
+	void init() {
 		// Create a vertex array object
 		GLuint vao;
 		glGenVertexArrays(1, &vao);
@@ -172,10 +187,11 @@ public:
 	}
 };
 
-point4 WorldPlane::points[6] = { point4(-1,0,-1,1), point4(1,0,1,1),
-	point4(1,0,-1,1), point4(-1,0,1,1), point4(1,0,1,1), point4(-1,0,-1,1)};
-vec4 WorldPlane::normals[6] = { vec4(0,1,0,0), vec4(0,1,0,0),
-	vec4(0,1,0,0), vec4(0,1,0,0), vec4(0,1,0,0), vec4(0,1,0,0)};
+point4 WorldPlane::points[6] = { point4(-1, 0, -1, 1), point4(1, 0, 1, 1),
+		point4(1, 0, -1, 1), point4(-1, 0, 1, 1), point4(1, 0, 1, 1), point4(-1,
+				0, -1, 1) };
+vec4 WorldPlane::normals[6] = { vec4(0, 1, 0, 0), vec4(0, 1, 0, 0), vec4(0, 1,
+		0, 0), vec4(0, 1, 0, 0), vec4(0, 1, 0, 0), vec4(0, 1, 0, 0) };
 
 // global variable to keep track of single world plane
 WorldPlane worldPlane = WorldPlane();
@@ -218,8 +234,7 @@ struct Manipulator {
 	GLubyte zSelectionB;
 	GLubyte zSelectionA;
 
-	void init()
-	{
+	void init() {
 		xSelectionR = 0;
 		xSelectionG = 200;
 		xSelectionB = 0;
@@ -249,9 +264,11 @@ struct Manipulator {
 		GLuint xBuffer;
 		glGenBuffers(1, &xBuffer);
 		glBindBuffer( GL_ARRAY_BUFFER, xBuffer);
-		glBufferData( GL_ARRAY_BUFFER, xNumVertices * sizeof(point4), NULL, GL_STATIC_DRAW);
+		glBufferData( GL_ARRAY_BUFFER, xNumVertices * sizeof(point4), NULL,
+		GL_STATIC_DRAW);
 		glBufferSubData( GL_ARRAY_BUFFER, 0, 2 * sizeof(point4), xAxis);
-		glBufferSubData( GL_ARRAY_BUFFER, 2 * sizeof(point4), 36 * sizeof(point4), xTip);
+		glBufferSubData( GL_ARRAY_BUFFER, 2 * sizeof(point4),
+				36 * sizeof(point4), xTip);
 
 		// set up vertex arrays
 		GLuint vPosition = glGetAttribLocation(mainShaderProgram, "vPosition");
@@ -275,9 +292,11 @@ struct Manipulator {
 		GLuint yBuffer;
 		glGenBuffers(1, &yBuffer);
 		glBindBuffer( GL_ARRAY_BUFFER, yBuffer);
-		glBufferData( GL_ARRAY_BUFFER, yNumVertices * sizeof(point4), NULL, GL_STATIC_DRAW);
+		glBufferData( GL_ARRAY_BUFFER, yNumVertices * sizeof(point4), NULL,
+		GL_STATIC_DRAW);
 		glBufferSubData( GL_ARRAY_BUFFER, 0, 2 * sizeof(point4), yAxis);
-		glBufferSubData( GL_ARRAY_BUFFER, 2 * sizeof(point4), 36 * sizeof(point4), yTip);
+		glBufferSubData( GL_ARRAY_BUFFER, 2 * sizeof(point4),
+				36 * sizeof(point4), yTip);
 
 		// set up vertex arrays
 		vPosition = glGetAttribLocation(mainShaderProgram, "vPosition");
@@ -301,9 +320,11 @@ struct Manipulator {
 		GLuint zBuffer;
 		glGenBuffers(1, &zBuffer);
 		glBindBuffer( GL_ARRAY_BUFFER, zBuffer);
-		glBufferData( GL_ARRAY_BUFFER, zNumVertices * sizeof(point4), NULL, GL_STATIC_DRAW);
+		glBufferData( GL_ARRAY_BUFFER, zNumVertices * sizeof(point4), NULL,
+		GL_STATIC_DRAW);
 		glBufferSubData( GL_ARRAY_BUFFER, 0, 2 * sizeof(point4), zAxis);
-		glBufferSubData( GL_ARRAY_BUFFER, 2 * sizeof(point4), 36 * sizeof(point4), zTip);
+		glBufferSubData( GL_ARRAY_BUFFER, 2 * sizeof(point4),
+				36 * sizeof(point4), zTip);
 
 		// set up vertex arrays
 		vPosition = glGetAttribLocation(mainShaderProgram, "vPosition");
@@ -312,42 +333,41 @@ struct Manipulator {
 				BUFFER_OFFSET(0));
 	}
 
-	void colorcube(point4* points, mat4 translate)
-	{
+	void colorcube(point4* points, mat4 translate) {
 		int index = 0;
-		quad( points, index, translate, 4, 5, 6, 7 );
-		quad( points, index, translate, 5, 4, 0, 1 );
-		quad( points, index, translate, 1, 0, 3, 2 );
-		quad( points, index, translate, 2, 3, 7, 6 );
-		quad( points, index, translate, 3, 0, 4, 7 );
-		quad( points, index, translate, 6, 5, 1, 2 );
+		quad(points, index, translate, 4, 5, 6, 7);
+		quad(points, index, translate, 5, 4, 0, 1);
+		quad(points, index, translate, 1, 0, 3, 2);
+		quad(points, index, translate, 2, 3, 7, 6);
+		quad(points, index, translate, 3, 0, 4, 7);
+		quad(points, index, translate, 6, 5, 1, 2);
 	}
 
-	void quad( point4* points, int& index, mat4 translate, int a, int b, int c, int d )
-	{
-		points[index] = translate*cube[a]; index++;
-		points[index] = translate*cube[b]; index++;
-		points[index] = translate*cube[c]; index++;
-		points[index] = translate*cube[a]; index++;
-		points[index] = translate*cube[c]; index++;
-		points[index] = translate*cube[d]; index++;
+	void quad(point4* points, int& index, mat4 translate, int a, int b, int c,
+			int d) {
+		points[index] = translate * cube[a];
+		index++;
+		points[index] = translate * cube[b];
+		index++;
+		points[index] = translate * cube[c];
+		index++;
+		points[index] = translate * cube[a];
+		index++;
+		points[index] = translate * cube[c];
+		index++;
+		points[index] = translate * cube[d];
+		index++;
 	}
 };
 
-point4 Manipulator::xAxis[2] = { point4(0,0,0,1), point4(1,0,0,1) };
-point4 Manipulator::yAxis[2] = { point4(0,0,0,1), point4(0,1,0,1) };
-point4 Manipulator::zAxis[2] = { point4(0,0,0,1), point4(0,0,1,1) };
+point4 Manipulator::xAxis[2] = { point4(0, 0, 0, 1), point4(1, 0, 0, 1) };
+point4 Manipulator::yAxis[2] = { point4(0, 0, 0, 1), point4(0, 1, 0, 1) };
+point4 Manipulator::zAxis[2] = { point4(0, 0, 0, 1), point4(0, 0, 1, 1) };
 
-point4 Manipulator::cube[8] = {
-    point4( -0.05, -0.05,  0.05, 1.0 ),
-    point4( -0.05,  0.05,  0.05, 1.0 ),
-    point4(  0.05,  0.05,  0.05, 1.0 ),
-    point4(  0.05, -0.05,  0.05, 1.0 ),
-    point4( -0.05, -0.05, -0.05, 1.0 ),
-    point4( -0.05,  0.05, -0.05, 1.0 ),
-    point4(  0.05,  0.05, -0.05, 1.0 ),
-    point4(  0.05, -0.05, -0.05, 1.0 )
-};
+point4 Manipulator::cube[8] = { point4(-0.05, -0.05, 0.05, 1.0), point4(-0.05,
+		0.05, 0.05, 1.0), point4(0.05, 0.05, 0.05, 1.0), point4(0.05, -0.05,
+		0.05, 1.0), point4(-0.05, -0.05, -0.05, 1.0), point4(-0.05, 0.05, -0.05,
+		1.0), point4(0.05, 0.05, -0.05, 1.0), point4(0.05, -0.05, -0.05, 1.0) };
 
 // global variable to keep track of single world plane
 Manipulator manipulator = Manipulator();
@@ -364,8 +384,8 @@ void myFunc(Object object, Face face, struct ObjectInstance& curObject) {
 		Vertex vertex = object.vertices[face.vertexId[i]];
 		Vertex vertexNormal = object.verticeNormals[face.vertexNormalId[i]];
 		curObject.points[Index] = point4(vertex.x, vertex.y, vertex.z, 1);
-		curObject.normals[Index] = vec4(vertexNormal.x, vertexNormal.y, vertexNormal.z,
-				0);
+		curObject.normals[Index] = vec4(vertexNormal.x, vertexNormal.y,
+				vertexNormal.z, 0);
 		Index++;
 	}
 }
@@ -373,8 +393,7 @@ void myFunc(Object object, Face face, struct ObjectInstance& curObject) {
 //----------------------------------------------------------------------------
 
 // loads an object into the scene from a file
-void loadObjectFromFile(string filename)
-{
+void loadObjectFromFile(string filename) {
 	// declare current object
 	struct ObjectInstance curObject;
 
@@ -388,7 +407,8 @@ void loadObjectFromFile(string filename)
 	curObject.normals = new vec4[NumVertices];
 	Index = 0;
 	for (unsigned int j = 0; j < sceneLoader.objects[objId].faces.size(); j++) {
-		myFunc(sceneLoader.objects[objId], sceneLoader.objects[objId].faces[j], curObject);
+		myFunc(sceneLoader.objects[objId], sceneLoader.objects[objId].faces[j],
+				curObject);
 	}
 
 	// Create a vertex array object
@@ -399,11 +419,11 @@ void loadObjectFromFile(string filename)
 	// fill in rest of details for object and add to list
 	curObject.vaoID = vao;
 	curObject.numVertices = NumVertices;
-	curObject.selectionR = idcount;  ///Really only using red component to store unique id!
+	curObject.selectionR = idcount; ///Really only using red component to store unique id!
 	printf("Set red component to %d\n", curObject.selectionR);
-	curObject.selectionG=0;
-	curObject.selectionB=0;
-	curObject.selectionA=255;
+	curObject.selectionG = 0;
+	curObject.selectionB = 0;
+	curObject.selectionA = 255;
 	curObject.translate = Translate(0, 0, 0);
 	curObject.rotate = RotateX(0);
 	curObject.scale = Scale(1, 1, 1);
@@ -420,7 +440,8 @@ void loadObjectFromFile(string filename)
 	glBufferData( GL_ARRAY_BUFFER, pointsSize + normalzSize,
 	NULL, GL_STATIC_DRAW);
 	glBufferSubData( GL_ARRAY_BUFFER, 0, pointsSize, curObject.points);
-	glBufferSubData( GL_ARRAY_BUFFER, pointsSize, normalzSize, curObject.normals);
+	glBufferSubData( GL_ARRAY_BUFFER, pointsSize, normalzSize,
+			curObject.normals);
 
 	// set up vertex arrays
 	GLuint vPosition = glGetAttribLocation(mainShaderProgram, "vPosition");
@@ -439,13 +460,14 @@ void loadObjectFromFile(string filename)
 // OpenGL initialization
 void init() {
 	// Load shaders and use the resulting shader program
-	mainShaderProgram = InitShader("shaders/vshader.glsl", "shaders/fshader.glsl");
+	mainShaderProgram = InitShader("shaders/vshader.glsl",
+			"shaders/fshader.glsl");
 	glUseProgram(mainShaderProgram);
 
 	// initialize world plane
 	worldPlane.init();
 	manipulator.init();
-	
+
 	// TODO for debugging convenience; final = remove below
 	//loadObjectFromFile("data/bunnyS.obj");
 
@@ -480,10 +502,14 @@ void init() {
 			material_shininess);
 
 	//Set up selection colors and a flag
-	SelectColorRLoc = glGetUniformLocation(mainShaderProgram,"selectionColorR");
-	SelectColorGLoc = glGetUniformLocation(mainShaderProgram,"selectionColorG");
-	SelectColorBLoc = glGetUniformLocation(mainShaderProgram,"selectionColorB");
-	SelectColorALoc = glGetUniformLocation(mainShaderProgram,"selectionColorA");
+	SelectColorRLoc = glGetUniformLocation(mainShaderProgram,
+			"selectionColorR");
+	SelectColorGLoc = glGetUniformLocation(mainShaderProgram,
+			"selectionColorG");
+	SelectColorBLoc = glGetUniformLocation(mainShaderProgram,
+			"selectionColorB");
+	SelectColorALoc = glGetUniformLocation(mainShaderProgram,
+			"selectionColorA");
 	glUniform1i(SelectColorRLoc, selectionColorR);
 	glUniform1i(SelectColorGLoc, selectionColorG);
 	glUniform1i(SelectColorBLoc, selectionColorB);
@@ -492,7 +518,8 @@ void init() {
 	SelectFlagLoc = glGetUniformLocation(mainShaderProgram, "flag");
 	glUniform1i(SelectFlagLoc, flag);
 
-	manipulatorFlagLoc = glGetUniformLocation(mainShaderProgram, "manipulatorFlag");
+	manipulatorFlagLoc = glGetUniformLocation(mainShaderProgram,
+			"manipulatorFlag");
 	glUniform1i(manipulatorFlagLoc, 0);
 
 	// Retrieve transformation uniform variable locations
@@ -529,12 +556,9 @@ void init() {
 }
 
 //----------------------------------------------------------------------------
-void
-mouse( int button, int state, int x, int y )
-{
+void mouse(int button, int state, int x, int y) {
 	// store location of latest mouse click
-	if (button == GLUT_LEFT_BUTTON)
-	{
+	if (button == GLUT_LEFT_BUTTON) {
 		prevMouseX = x;
 		prevMouseY = y;
 	}
@@ -545,8 +569,7 @@ mouse( int button, int state, int x, int y )
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	//render each object, setting the selection RGBA to the objects selection color (RGBA)
-	for(int i=0; i < counter; i++)
-	{
+	for (int i = 0; i < counter; i++) {
 		//should store numVerts with vao and possibly the index in the array of objects, instead of storing only ints as I currently am
 		//which represent the vaos
 		flag = 1;
@@ -559,50 +582,47 @@ mouse( int button, int state, int x, int y )
 		selectionColorA = myObjects[i].selectionA;
 
 		//sync with shader
-		glUniform1i(SelectColorRLoc,selectionColorR);
-		glUniform1i(SelectColorGLoc,selectionColorG);
-		glUniform1i(SelectColorBLoc,selectionColorB);
-		glUniform1i(SelectColorALoc,selectionColorA);
+		glUniform1i(SelectColorRLoc, selectionColorR);
+		glUniform1i(SelectColorGLoc, selectionColorG);
+		glUniform1i(SelectColorBLoc, selectionColorB);
+		glUniform1i(SelectColorALoc, selectionColorA);
 		glUniform1i(SelectFlagLoc, flag);
 
 		// properly transform object before drawing it
-		mat4 m = myObjects[i].translate * myObjects[i].rotate * myObjects[i].scale;
+		mat4 m = myObjects[i].translate * myObjects[i].rotate
+				* myObjects[i].scale;
 		glUniformMatrix4fv(model, 1, GL_TRUE, m);
 
 		//Draw the scene.  The flag will force shader to not use shading, but instead use a constant color
-		glDrawArrays( GL_TRIANGLES, 0, myObjects[i].numVertices );
-		glutPostRedisplay();  //MUST REMEMBER TO CALL POST REDISPLAY OR IT WONT RENDER!
+		glDrawArrays( GL_TRIANGLES, 0, myObjects[i].numVertices);
+		glutPostRedisplay(); //MUST REMEMBER TO CALL POST REDISPLAY OR IT WONT RENDER!
 
 	}
 
 	// MANIPULATOR STUFF
-	if (picked != -1)
-	{
-		for (int i = 0; i < 3; i++)
-		{
+	if (picked != -1) {
+		for (int i = 0; i < 3; i++) {
 			flag = 1;
 
 			int numVertices;
 			if (i == 0) // x-axis
-			{
+					{
 				glBindVertexArray(manipulator.xVaoID);
 				selectionColorR = manipulator.xSelectionR;
 				selectionColorG = manipulator.xSelectionG;
 				selectionColorB = manipulator.xSelectionB;
 				selectionColorA = manipulator.xSelectionA;
 				numVertices = manipulator.xNumVertices;
-			}
-			else if (i == 1) // y-axis
-			{
+			} else if (i == 1) // y-axis
+					{
 				glBindVertexArray(manipulator.yVaoID);
 				selectionColorR = manipulator.ySelectionR;
 				selectionColorG = manipulator.ySelectionG;
 				selectionColorB = manipulator.ySelectionB;
 				selectionColorA = manipulator.ySelectionA;
 				numVertices = manipulator.yNumVertices;
-			}
-			else if (i == 2) // z-axis
-			{
+			} else if (i == 2) // z-axis
+					{
 				glBindVertexArray(manipulator.zVaoID);
 				selectionColorR = manipulator.zSelectionR;
 				selectionColorG = manipulator.zSelectionG;
@@ -612,10 +632,10 @@ mouse( int button, int state, int x, int y )
 			}
 
 			//sync with shader
-			glUniform1i(SelectColorRLoc,selectionColorR);
-			glUniform1i(SelectColorGLoc,selectionColorG);
-			glUniform1i(SelectColorBLoc,selectionColorB);
-			glUniform1i(SelectColorALoc,selectionColorA);
+			glUniform1i(SelectColorRLoc, selectionColorR);
+			glUniform1i(SelectColorGLoc, selectionColorG);
+			glUniform1i(SelectColorBLoc, selectionColorB);
+			glUniform1i(SelectColorALoc, selectionColorA);
 			glUniform1i(SelectFlagLoc, flag);
 
 			// properly transform object before drawing it
@@ -623,8 +643,8 @@ mouse( int button, int state, int x, int y )
 			glUniformMatrix4fv(model, 1, GL_TRUE, m);
 
 			//Draw the scene.  The flag will force shader to not use shading, but instead use a constant color
-			glDrawArrays( GL_TRIANGLES, 0, numVertices );
-			glutPostRedisplay();  //MUST REMEMBER TO CALL POST REDISPLAY OR IT WONT RENDER!
+			glDrawArrays( GL_TRIANGLES, 0, numVertices);
+			glutPostRedisplay(); //MUST REMEMBER TO CALL POST REDISPLAY OR IT WONT RENDER!
 		}
 	}
 
@@ -642,27 +662,32 @@ mouse( int button, int state, int x, int y )
 	int prevSelectedAxis = selectedAxis;
 	selectedAxis = -1;
 
-	if (picked != -1)
-	{
-		if(manipulator.xSelectionR == ceil(pixel[0]) && manipulator.xSelectionG == pixel[1]
-			&& manipulator.xSelectionB == pixel[2]&& manipulator.xSelectionA == pixel[3])
+	if (picked != -1) {
+		if (manipulator.xSelectionR == ceil(pixel[0])
+				&& manipulator.xSelectionG == pixel[1]
+				&& manipulator.xSelectionB == pixel[2]
+				&& manipulator.xSelectionA == pixel[3])
 			selectedAxis = 0;
-		else if(manipulator.ySelectionR == ceil(pixel[0]) && manipulator.ySelectionG == pixel[1]
-			&& manipulator.ySelectionB == pixel[2]&& manipulator.ySelectionA == pixel[3])
+		else if (manipulator.ySelectionR == ceil(pixel[0])
+				&& manipulator.ySelectionG == pixel[1]
+				&& manipulator.ySelectionB == pixel[2]
+				&& manipulator.ySelectionA == pixel[3])
 			selectedAxis = 1;
-		else if(manipulator.zSelectionR == ceil(pixel[0]) && manipulator.zSelectionG == pixel[1]
-			&& manipulator.zSelectionB == pixel[2]&& manipulator.zSelectionA == pixel[3])
+		else if (manipulator.zSelectionR == ceil(pixel[0])
+				&& manipulator.zSelectionG == pixel[1]
+				&& manipulator.zSelectionB == pixel[2]
+				&& manipulator.zSelectionA == pixel[3])
 			selectedAxis = 2;
 	}
 
 	// if we just selected the axis or it was already selected, then keep the picked object
-	if (selectedAxis == -1 && prevSelectedAxis == -1)
-	{
+	if (selectedAxis == -1 && prevSelectedAxis == -1) {
 		picked = -1;
-		for(int i=0; i < counter; i++)
-		{
-			if(myObjects[i].selectionR == ceil(pixel[0]) && myObjects[i].selectionG == pixel[1]
-				&& myObjects[i].selectionB == pixel[2]&& myObjects[i].selectionA == pixel[3])
+		for (int i = 0; i < counter; i++) {
+			if (myObjects[i].selectionR == ceil(pixel[0])
+					&& myObjects[i].selectionG == pixel[1]
+					&& myObjects[i].selectionB == pixel[2]
+					&& myObjects[i].selectionA == pixel[3])
 				picked = i;
 		}
 	}
@@ -681,86 +706,111 @@ void display();
 
 //TODO: fill below with appropriate transforms
 //		also possibly need additional state information
-void motion(int x, int y)
-{
-	int xDiff = x - prevMouseX;
-	int yDiff = y - prevMouseY;
+void motion(int x, int y) {
+	float adjust = 0.0001;
+	float xDiff = (x - prevMouseX) * adjust;
+	float yDiff = -(y - prevMouseY) * adjust;
+	float zDiff = -(x - prevMouseX) * adjust;
 
-	float xRatio = 1;
-	float yRatio = 1;
-	if (xDiff > 0)
-		xRatio = 1.1;
-	else if (xDiff < 0)
-		xRatio = .9;
-	if (yDiff > 0)
-		yRatio = 1.1;
-	else if (yDiff < 0)
-		yRatio = .9;
-
-	prevMouseX = x;
-	prevMouseY = y;
-
-	//cout << "x: " << xDiff << ", y: " << yDiff << endl;
-
-	// experimental parameters
-	const float TRANSLATE_COEFF = 0.01;
-	const float ROTATE_COEFF = 1.0;
-	const float SCALE_COEFF = 1.0;
-
-	if (currentModelTransformMode == OBJECT_TRANSLATE)
-	{
-		if (picked != -1)
-		{
-			if (selectedAxis == 0)
-				myObjects[picked].translate = Translate(TRANSLATE_COEFF*xDiff, 0, 0) * myObjects[picked].translate;
-			else if (selectedAxis == 1)
-				myObjects[picked].translate = Translate(0, TRANSLATE_COEFF*xDiff, 0) * myObjects[picked].translate;
-			else if (selectedAxis == 2)
-				myObjects[picked].translate = Translate(0, 0, TRANSLATE_COEFF*xDiff) * myObjects[picked].translate;
+	float angle = 10;
+	float scale = 1.05;
+	if (selectedAxis == 0 && xDiff < 0) {
+		angle = -10;
+		scale = 0.9;
+	} else if (selectedAxis == 1) {
+		if (yDiff > 0) {
+			scale = 1.1;
+		} else if (yDiff < 0) {
+			scale = 0.95;
 		}
+	} else if (selectedAxis == 2 && xDiff > 0) {
+		scale = 0.9;
 	}
-	else if (currentModelTransformMode == OBJECT_ROTATE)
-	{
-		if (picked != -1)
-		{
-			if (selectedAxis == 0)
-				myObjects[picked].rotate = RotateX(ROTATE_COEFF*xDiff) * myObjects[picked].rotate;
-			else if (selectedAxis == 1)
-				myObjects[picked].rotate = RotateY(ROTATE_COEFF*xDiff) * myObjects[picked].rotate;
-			else if (selectedAxis == 2)
-				myObjects[picked].rotate = RotateZ(ROTATE_COEFF*xDiff) * myObjects[picked].rotate;
+	if (currentModelTransformMode == OBJECT_TRANSLATE) {
+		switch (selectedAxis) {
+		case -1:
+			xDiff = 0;
+			yDiff = 0;
+			zDiff = 0;
+			break;
+		case 0:
+			yDiff = 0;
+			zDiff = 0;
+			break;
+		case 1:
+			xDiff = 0;
+			zDiff = 0;
+			break;
+		case 2:
+			yDiff = 0;
+			xDiff = 0;
+			break;
+
 		}
-	}
-	else if (currentModelTransformMode == OBJECT_SCALE)
-	{
-		if (picked != -1)
-		{
-			if (selectedAxis == 0)
-				myObjects[picked].scale = Scale(SCALE_COEFF*xRatio, 1, 1) * myObjects[picked].scale;
-			else if (selectedAxis == 1)
-				myObjects[picked].scale = Scale(1, SCALE_COEFF*xRatio, 1) * myObjects[picked].scale;
-			else if (selectedAxis == 2)
-				myObjects[picked].scale = Scale(1, 1, SCALE_COEFF*xRatio) * myObjects[picked].scale;
+		myObjects[picked].translate = myObjects[picked].translate
+				* Translate(xDiff, yDiff, zDiff);
+
+	} else if (currentModelTransformMode == OBJECT_ROTATE) {
+		switch (selectedAxis) {
+		case -1:
+			break;
+		case 0:
+			myObjects[picked].rotate = myObjects[picked].rotate
+					* RotateX(angle);
+			break;
+		case 1:
+			myObjects[picked].rotate = myObjects[picked].rotate
+					* RotateY(angle);
+			break;
+		case 2:
+			myObjects[picked].rotate = myObjects[picked].rotate
+					* RotateZ(angle);
+			break;
 		}
-	}
-	else if (currentViewTransformMode == SCENE_ROTATE_X)
-	{
-		
-	}
-	else if (currentViewTransformMode == SCENE_ROTATE_Y)
-	{
 
-	}
-	else if (currentViewTransformMode == SCENE_ROTATE_Z)
-	{
+	} else if (currentModelTransformMode == OBJECT_SCALE) {
 
-	}
-	else if (currentViewTransformMode == SCENE_TRANSLATE)
-	{
+		switch (selectedAxis) {
+		case -1:
+			break;
+		case 0:
+			myObjects[picked].scale = myObjects[picked].scale
+					* Scale(scale, 1, 1);
+			break;
+		case 1:
+			myObjects[picked].scale = myObjects[picked].scale
+					* Scale(1, scale, 1);
+			break;
+		case 2:
+			myObjects[picked].scale = myObjects[picked].scale
+					* Scale(1, 1, scale);
+			break;
+		}
 
-	}
-	else if (currentViewTransformMode == SCENE_DOLLY)
-	{
+	} else if (currentViewTransformMode == SCENE_ROTATE_X) {
+		trot += (x - prevMouseX) / 2;
+		if (trot > 360)
+			trot -= 360;
+		if (trot < 0)
+			trot += 360;
+		prevMouseX = x;
+
+		prot += (y - prevMouseY) / 2;
+		if (prot < -90)
+			prot = -90;
+		if (prot > 90)
+			prot = 90;
+		prevMouseY = y;
+
+		glutPostRedisplay();
+
+	} else if (currentViewTransformMode == SCENE_ROTATE_Y) {
+
+	} else if (currentViewTransformMode == SCENE_ROTATE_Z) {
+
+	} else if (currentViewTransformMode == SCENE_TRANSLATE) {
+
+	} else if (currentViewTransformMode == SCENE_DOLLY) {
 
 	}
 
@@ -769,8 +819,7 @@ void motion(int x, int y)
 
 //----------------------------------------------------------------------------
 
-void drawManipulator(mat4 m)
-{
+void drawManipulator(mat4 m) {
 	flag = 0;
 	glUniform1i(SelectFlagLoc, flag);
 
@@ -795,12 +844,21 @@ void drawManipulator(mat4 m)
 	glDrawArrays(GL_LINES, 0, 2);
 	glDrawArrays(GL_TRIANGLES, 2, 36);
 }
+bool initilized = false;
+void display(void) {
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-void
-display( void )
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//  Set camera position and orientation.
+	view = glGetUniformLocation(mainShaderProgram, "View");
 
+	//Set up the view matrix with LookAt
+	point4 eye(r * cos(prot * deg) * cos(trot * deg), r * sin(prot * deg),
+			r * cos(prot * deg) * sin(trot * deg), 1.0);
+	point4 at(ax, ay, az, 1.0);
+	vec4 up(ux, uy, uz, 0.0);
+
+	mat4 v = LookAt(eye, at, up);
+	glUniformMatrix4fv(view, 1, GL_TRUE, v);
 	// draw ground plane
 	glUniform1i(manipulatorFlagLoc, 0);
 	flag = 0;
@@ -808,23 +866,22 @@ display( void )
 	mat4 m = mat4(); // identity
 	glUniformMatrix4fv(model, 1, GL_TRUE, m);
 	glBindVertexArray(worldPlane.vaoID);
-	glDrawArrays( GL_TRIANGLES, 0, worldPlane.numVertices );
+	glDrawArrays( GL_TRIANGLES, 0, worldPlane.numVertices);
 
 	// draw objects
-	for(int i=0; i < counter; i++)
-	{
-		if (i == picked)
-		{
+	for (int i = 0; i < counter; i++) {
+		if (i == picked) {
 			// draw manipulator
 			drawManipulator(myObjects[i].translate);
 
 			// draw in wireframe mode
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); 
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 			glPolygonOffset(1.0, 2); //Try 1.0 and 2 for factor and units
 		}
 
 		//Render transformation
-		mat4 m = myObjects[i].translate * myObjects[i].rotate * myObjects[i].scale;
+		mat4 m = myObjects[i].translate * myObjects[i].rotate
+				* myObjects[i].scale;
 		glUniformMatrix4fv(model, 1, GL_TRUE, m);
 
 		// turn off manipulator flag
@@ -837,17 +894,16 @@ display( void )
 		flag = 0;
 		glUniform1i(SelectFlagLoc, flag);
 		glBindVertexArray(myObjects[i].vaoID);
-		glDrawArrays( GL_TRIANGLES, 0, myObjects[i].numVertices );
+		glDrawArrays( GL_TRIANGLES, 0, myObjects[i].numVertices);
 
-		if (i == picked)
-		{
+		if (i == picked) {
 			// revert back to fill mode
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
 	}
 
-    //comment this to see the color render
-    glutSwapBuffers();
+	//comment this to see the color render
+	glutSwapBuffers();
 }
 
 //----------------------------------------------------------------------------
@@ -865,33 +921,24 @@ void keyboard(unsigned char key, int x, int y) {
 //----------------------------------------------------------------------------
 // menu stuff
 
-void mainMenuCallback(int id)
-{
-	if (id == 1)
-	{
+void mainMenuCallback(int id) {
+	if (id == 1) {
 		// prompt user for input filename via command line
 		string filename;
-		while (filename.empty())
-		{
+		while (filename.empty()) {
 			cout << "Input file name: ";
 			cin >> filename;
 		}
 
-		if (filename.find(".obj") == string::npos)
-		{
+		if (filename.find(".obj") == string::npos) {
 			cout << "Invalid file name. Loading canceled." << endl << endl;
-		}
-		else
-		{
+		} else {
 			// load .obj file
 			loadObjectFromFile(filename);
 			cout << "Successfully loaded " << filename << "." << endl << endl;
 		}
-	}
-	else if (id == 2)
-	{
-		for (int i = 0; i < counter; i++)
-		{
+	} else if (id == 2) {
+		for (int i = 0; i < counter; i++) {
 			myObjects[i].translate = Translate(0, 0, 0);
 			myObjects[i].rotate = RotateX(0);
 			myObjects[i].scale = Scale(1, 1, 1);
@@ -902,68 +949,57 @@ void mainMenuCallback(int id)
 		display();
 
 		cout << "All transformations reset." << endl << endl;
-	}
-	else if (id == 3)
-	{
+	} else if (id == 3) {
 		exit(0);
 	}
 }
 
-void objMenuCallback(int id)
-{
-	if (id == 1)
-	{
+void objMenuCallback(int id) {
+	if (id == 1) {
 		cout << "Switched to OBJECT TRANSLATE mode." << endl;
 		currentModelTransformMode = OBJECT_TRANSLATE;
-	}
-	else if (id == 2)
-	{
+		currentViewTransformMode = SCENE_NONE;
+	} else if (id == 2) {
 		cout << "Switched to OBJECT ROTATE mode." << endl;
 		currentModelTransformMode = OBJECT_ROTATE;
-	}
-	else if (id == 3)
-	{
+		currentViewTransformMode = SCENE_NONE;
+	} else if (id == 3) {
 		cout << "Switched to OBJECT SCALE mode." << endl;
 		currentModelTransformMode = OBJECT_SCALE;
+		currentViewTransformMode = SCENE_NONE;
 	}
 }
 
-void sceneMenuCallback(int id)
-{
-	if (id == 1)
-	{
+void sceneMenuCallback(int id) {
+	if (id == 1) {
 		cout << "Switched to SCENE TRANSLATE mode." << endl;
 		currentViewTransformMode = SCENE_TRANSLATE;
-	}
-	else if (id == 2)
-	{
+		currentModelTransformMode = OBJECT_NONE;
+	} else if (id == 2) {
 		cout << "Switched to SCENE DOLLY mode." << endl;
 		currentViewTransformMode = SCENE_DOLLY;
+		currentModelTransformMode = OBJECT_NONE;
 	}
 }
 
-void sceneRotateMenuCallback(int id)
-{
-	if (id == 1)
-	{
+void sceneRotateMenuCallback(int id) {
+	if (id == 1) {
 		cout << "Switched to SCENE ROTATE X mode." << endl;
 		currentViewTransformMode = SCENE_ROTATE_X;
-	}
-	else if (id == 2)
-	{
+		currentModelTransformMode = OBJECT_NONE;
+	} else if (id == 2) {
 		cout << "Switched to SCENE ROTATE Y mode." << endl;
 		currentViewTransformMode = SCENE_ROTATE_Y;
-	}
-	else if (id == 3)
-	{
+		currentModelTransformMode = OBJECT_NONE;
+	} else if (id == 3) {
 		cout << "Switched to SCENE ROTATE Z mode." << endl;
 		currentViewTransformMode = SCENE_ROTATE_Z;
+		currentModelTransformMode = OBJECT_NONE;
 	}
 }
 
 // This creates the menu/submenus
-void makeMenu()
-{
+void makeMenu() {
 	int objectTransformSubMenu = glutCreateMenu(objMenuCallback);
 	glutAddMenuEntry("Translation", 1);
 	glutAddMenuEntry("Rotation", 2);
@@ -1013,7 +1049,9 @@ int main(int argc, char** argv) {
 		zNear = atof(argv[6]);
 		zFar = atof(argv[7]);
 	} else {
-		cerr << "Usage: ./SimpleProgram (O left right bottom top near far)|(P fov near far)" << endl;
+		cerr
+				<< "Usage: ./SimpleProgram (O left right bottom top near far)|(P fov near far)"
+				<< endl;
 		exit(1);
 	}
 	glutInit(&argc, argv);
