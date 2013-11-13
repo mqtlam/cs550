@@ -44,13 +44,17 @@ ProjectionType tranformType = perspective;
 //----------------------------------------------------------------------------
 
 // define all the transformation modes
-enum TransformMode {
+enum ObjectTransformMode {
 	OBJECT_TRANSLATE, OBJECT_ROTATE, OBJECT_SCALE,
+};
+
+enum SceneTransformMode {
 	SCENE_ROTATE_X, SCENE_ROTATE_Y, SCENE_ROTATE_Z, SCENE_TRANSLATE, SCENE_DOLLY
 };
 
-// global variable to store current transform mode
-TransformMode currentTransformMode = OBJECT_TRANSLATE;
+// global variable to store current transform modes
+ObjectTransformMode currentModelTransformMode = OBJECT_TRANSLATE;
+SceneTransformMode currentViewTransformMode = SCENE_ROTATE_X;
 
 //----------------------------------------------------------------------------
 
@@ -117,7 +121,7 @@ GLuint mainShaderProgram;
 
 // mouse state information
 bool isMousePressed = false;
-int pressedMouseX, pressedMouseY;
+int prevMouseX, prevMouseY;
 
 // keeps track of the currently selected axis
 int selectedAxis = -1; // -1 = none, 0 = x-axis, 1 = y-axis, 2 = z-axis
@@ -531,8 +535,8 @@ mouse( int button, int state, int x, int y )
 	// store location of latest mouse click
 	if (button == GLUT_LEFT_BUTTON)
 	{
-		pressedMouseX = x;
-		pressedMouseY = y;
+		prevMouseX = x;
+		prevMouseY = y;
 	}
 
 	//printf("Mouse button pressed at %d, %d\n", x, y);
@@ -673,45 +677,94 @@ mouse( int button, int state, int x, int y )
 //----------------------------------------------------------------------------
 // motion callback - calls when mouse is pressed and dragging in window
 
+void display();
+
 //TODO: fill below with appropriate transforms
 //		also possibly need additional state information
 void motion(int x, int y)
 {
-	int xDiff = x - pressedMouseX;
-	int yDiff = y - pressedMouseY;
+	int xDiff = x - prevMouseX;
+	int yDiff = y - prevMouseY;
 
-	if (currentTransformMode == OBJECT_TRANSLATE)
+	float xRatio = 1;
+	float yRatio = 1;
+	if (xDiff > 0)
+		xRatio = 1.1;
+	else if (xDiff < 0)
+		xRatio = .9;
+	if (yDiff > 0)
+		yRatio = 1.1;
+	else if (yDiff < 0)
+		yRatio = .9;
+
+	prevMouseX = x;
+	prevMouseY = y;
+
+	//cout << "x: " << xDiff << ", y: " << yDiff << endl;
+
+	// experimental parameters
+	const float TRANSLATE_COEFF = 0.01;
+	const float ROTATE_COEFF = 1.0;
+	const float SCALE_COEFF = 1.0;
+
+	if (currentModelTransformMode == OBJECT_TRANSLATE)
 	{
-
+		if (picked != -1)
+		{
+			if (selectedAxis == 0)
+				myObjects[picked].translate = Translate(TRANSLATE_COEFF*xDiff, 0, 0) * myObjects[picked].translate;
+			else if (selectedAxis == 1)
+				myObjects[picked].translate = Translate(0, TRANSLATE_COEFF*xDiff, 0) * myObjects[picked].translate;
+			else if (selectedAxis == 2)
+				myObjects[picked].translate = Translate(0, 0, TRANSLATE_COEFF*xDiff) * myObjects[picked].translate;
+		}
 	}
-	else if (currentTransformMode == OBJECT_ROTATE)
+	else if (currentModelTransformMode == OBJECT_ROTATE)
 	{
-
+		if (picked != -1)
+		{
+			if (selectedAxis == 0)
+				myObjects[picked].rotate = RotateX(ROTATE_COEFF*xDiff) * myObjects[picked].rotate;
+			else if (selectedAxis == 1)
+				myObjects[picked].rotate = RotateY(ROTATE_COEFF*xDiff) * myObjects[picked].rotate;
+			else if (selectedAxis == 2)
+				myObjects[picked].rotate = RotateZ(ROTATE_COEFF*xDiff) * myObjects[picked].rotate;
+		}
 	}
-	else if (currentTransformMode == OBJECT_SCALE)
+	else if (currentModelTransformMode == OBJECT_SCALE)
 	{
-
+		if (picked != -1)
+		{
+			if (selectedAxis == 0)
+				myObjects[picked].scale = Scale(SCALE_COEFF*xRatio, 1, 1) * myObjects[picked].scale;
+			else if (selectedAxis == 1)
+				myObjects[picked].scale = Scale(1, SCALE_COEFF*xRatio, 1) * myObjects[picked].scale;
+			else if (selectedAxis == 2)
+				myObjects[picked].scale = Scale(1, 1, SCALE_COEFF*xRatio) * myObjects[picked].scale;
+		}
 	}
-	else if (currentTransformMode == SCENE_ROTATE_X)
+	else if (currentViewTransformMode == SCENE_ROTATE_X)
 	{
 		
 	}
-	else if (currentTransformMode == SCENE_ROTATE_Y)
+	else if (currentViewTransformMode == SCENE_ROTATE_Y)
 	{
 
 	}
-	else if (currentTransformMode == SCENE_ROTATE_Z)
+	else if (currentViewTransformMode == SCENE_ROTATE_Z)
 	{
 
 	}
-	else if (currentTransformMode == SCENE_TRANSLATE)
+	else if (currentViewTransformMode == SCENE_TRANSLATE)
 	{
 
 	}
-	else if (currentTransformMode == SCENE_DOLLY)
+	else if (currentViewTransformMode == SCENE_DOLLY)
 	{
 
 	}
+
+	display();
 }
 
 //----------------------------------------------------------------------------
@@ -837,6 +890,21 @@ void mainMenuCallback(int id)
 	}
 	else if (id == 2)
 	{
+		for (int i = 0; i < counter; i++)
+		{
+			myObjects[i].translate = Translate(0, 0, 0);
+			myObjects[i].rotate = RotateX(0);
+			myObjects[i].scale = Scale(1, 1, 1);
+		}
+
+		picked = -1;
+		selectedAxis = -1;
+		display();
+
+		cout << "All transformations reset." << endl << endl;
+	}
+	else if (id == 3)
+	{
 		exit(0);
 	}
 }
@@ -846,17 +914,17 @@ void objMenuCallback(int id)
 	if (id == 1)
 	{
 		cout << "Switched to OBJECT TRANSLATE mode." << endl;
-		currentTransformMode = OBJECT_TRANSLATE;
+		currentModelTransformMode = OBJECT_TRANSLATE;
 	}
 	else if (id == 2)
 	{
 		cout << "Switched to OBJECT ROTATE mode." << endl;
-		currentTransformMode = OBJECT_ROTATE;
+		currentModelTransformMode = OBJECT_ROTATE;
 	}
 	else if (id == 3)
 	{
 		cout << "Switched to OBJECT SCALE mode." << endl;
-		currentTransformMode = OBJECT_SCALE;
+		currentModelTransformMode = OBJECT_SCALE;
 	}
 }
 
@@ -865,12 +933,12 @@ void sceneMenuCallback(int id)
 	if (id == 1)
 	{
 		cout << "Switched to SCENE TRANSLATE mode." << endl;
-		currentTransformMode = SCENE_TRANSLATE;
+		currentViewTransformMode = SCENE_TRANSLATE;
 	}
 	else if (id == 2)
 	{
 		cout << "Switched to SCENE DOLLY mode." << endl;
-		currentTransformMode = SCENE_DOLLY;
+		currentViewTransformMode = SCENE_DOLLY;
 	}
 }
 
@@ -879,17 +947,17 @@ void sceneRotateMenuCallback(int id)
 	if (id == 1)
 	{
 		cout << "Switched to SCENE ROTATE X mode." << endl;
-		currentTransformMode = SCENE_ROTATE_X;
+		currentViewTransformMode = SCENE_ROTATE_X;
 	}
 	else if (id == 2)
 	{
 		cout << "Switched to SCENE ROTATE Y mode." << endl;
-		currentTransformMode = SCENE_ROTATE_Y;
+		currentViewTransformMode = SCENE_ROTATE_Y;
 	}
 	else if (id == 3)
 	{
 		cout << "Switched to SCENE ROTATE Z mode." << endl;
-		currentTransformMode = SCENE_ROTATE_Z;
+		currentViewTransformMode = SCENE_ROTATE_Z;
 	}
 }
 
@@ -915,7 +983,8 @@ void makeMenu()
 	glutAddMenuEntry("Load .obj File", 1);
 	glutAddSubMenu("Object Transformation", objectTransformSubMenu);
 	glutAddSubMenu("Scene Transformation", sceneTransformSubMenu);
-	glutAddMenuEntry("Exit", 2);
+	glutAddMenuEntry("Reset Transformations", 2);
+	glutAddMenuEntry("Exit", 3);
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 }
 
