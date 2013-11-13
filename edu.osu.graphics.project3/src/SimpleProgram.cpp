@@ -73,16 +73,21 @@ SceneTransformMode currentViewTransformMode = SCENE_NONE;
 
 //----------------------------------------------------------------------------
 
+// default parameters
+const point4 DEFAULT_EYE = point4(2,2,2,1);
+const point4 DEFAULT_AT = point4(0,0,0,1);
+const vec4 DEFAULT_UP = vec4(0,1,0,0);
+
 // declarations and default camera/projection parameters
-float fx = 2;
-float fy = 2;
-float fz = 2;
-float ax = 0;
-float ay = 0;
-float az = 0;
-float ux = 0;
-float uy = 1;
-float uz = 0;
+float fx = DEFAULT_EYE.x;
+float fy = DEFAULT_EYE.y;
+float fz = DEFAULT_EYE.z;
+float ax = DEFAULT_AT.x;
+float ay = DEFAULT_AT.y;
+float az = DEFAULT_AT.z;
+float ux = DEFAULT_UP.x;
+float uy = DEFAULT_UP.y;
+float uz = DEFAULT_UP.z;
 float aspect = 1.0;
 float fovy, zNear, zFar;
 float left_, right_, bottom_, top_;
@@ -988,8 +993,24 @@ void mainMenuCallback(int id) {
 		selectedAxis = -1;
 		display();
 
-		cout << "All transformations reset." << endl << endl;
+		cout << "All model transformations reset." << endl << endl;
 	} else if (id == 3) {
+		fx = DEFAULT_EYE.x;
+		fy = DEFAULT_EYE.y;
+		fz = DEFAULT_EYE.z;
+		ax = DEFAULT_AT.x;
+		ay = DEFAULT_AT.y;
+		az = DEFAULT_AT.z;
+		ux = DEFAULT_UP.x;
+		uy = DEFAULT_UP.y;
+		uz = DEFAULT_UP.z;
+
+		picked = -1;
+		selectedAxis = -1;
+		display();
+
+		cout << "All view transformations reset." << endl << endl;
+	} else if (id == 4) {
 		exit(0);
 	}
 }
@@ -1043,8 +1064,9 @@ void makeMenu() {
 	glutAddMenuEntry("Load .obj File", 1);
 	glutAddSubMenu("Object Transformation", objectTransformSubMenu);
 	glutAddSubMenu("Scene Transformation", sceneTransformSubMenu);
-	glutAddMenuEntry("Reset Transformations", 2);
-	glutAddMenuEntry("Exit", 3);
+	glutAddMenuEntry("Reset Model Transformations", 2);
+	glutAddMenuEntry("Reset View Transformations", 3);
+	glutAddMenuEntry("Exit", 4);
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 }
 
