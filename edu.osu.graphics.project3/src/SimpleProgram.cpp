@@ -51,10 +51,13 @@ double r = 3;
 //---------------------------------------------------------
 // define projection types
 enum ProjectionType {
-	perspective, orthonormal
+	perspective, orthographic
 };
 
 ProjectionType tranformType = perspective;
+
+// projection matrix
+mat4 proj;
 
 //----------------------------------------------------------------------------
 
@@ -577,7 +580,7 @@ void init() {
 	glUniformMatrix4fv(view, 1, GL_TRUE, v);
 
 	//Setup the view volume
-	mat4 proj;
+	proj;
 	if (tranformType == perspective) {
 		proj = Perspective(fovy, aspect, zNear, zFar);
 	} else {
@@ -904,6 +907,10 @@ void display(void) {
 
 	mat4 v = LookAt(eye, at, up);
 	glUniformMatrix4fv(view, 1, GL_TRUE, v);
+
+	// projection
+	glUniformMatrix4fv(projection, 1, GL_TRUE, proj);
+
 	// draw ground plane
 	glUniform1i(manipulatorFlagLoc, 0);
 	flag = 0;
@@ -1072,6 +1079,32 @@ void makeMenu() {
 
 //----------------------------------------------------------------------------
 
+// reshaping window
+void reshape(int w, int h)
+{
+	float ar = 1.0*w/h; 
+	if (tranformType == perspective)
+	{
+		aspect = ar;
+		glViewport(0,0,w,h);
+		proj = Perspective(fovy, aspect, zNear, zFar);
+	}
+	else if (tranformType == orthographic)
+	{
+		glViewport(0,0,w,h); 
+		if( ar < 1.0) { // (w <= h ){ //taller 
+			proj = Ortho(left_, right_, left_ * (GLfloat) h / (GLfloat) w, 
+			right_ * (GLfloat) h / (GLfloat) w, zNear, zFar); 
+		} else //wider 
+		{ 
+			proj = Ortho(bottom_ * (GLfloat) w / (GLfloat) h, top_ * 
+			(GLfloat) w / (GLfloat) h, bottom_, top_, zNear, zFar); 
+		} 
+	}
+}
+
+//----------------------------------------------------------------------------
+
 /*
  *  simple.c
  *  This program draws a red rectangle on a white background.
@@ -1092,7 +1125,7 @@ int main(int argc, char** argv) {
 		float light_z = atof(argv[7]);
 		light_position = point4(light_x, light_y, light_z, 1.0);
 	} else if (strcmp(argv[1], "O") == 0) {
-		tranformType = orthonormal;
+		tranformType = orthographic;
 		left_ = atof(argv[2]);
 		right_ = atof(argv[3]);
 		bottom_ = atof(argv[4]);
@@ -1136,6 +1169,7 @@ int main(int argc, char** argv) {
 	glutMouseFunc(mouse);
 	glutMotionFunc(motion);
 	glutDisplayFunc(display);
+	glutReshapeFunc(reshape);
 	glutMainLoop();
 
 	return (0);
