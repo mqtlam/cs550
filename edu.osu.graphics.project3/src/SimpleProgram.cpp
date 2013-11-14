@@ -148,6 +148,7 @@ GLuint mainShaderProgram;
 // mouse state information
 bool isMousePressed = false;
 int prevMouseX, prevMouseY;
+int pressedMouseX, pressedMouseY;
 
 // keeps track of the currently selected axis
 int selectedAxis = -1; // -1 = none, 0 = x-axis, 1 = y-axis, 2 = z-axis
@@ -697,6 +698,8 @@ void mouse(int button, int state, int x, int y) {
 	if (button == GLUT_LEFT_BUTTON) {
 		prevMouseX = x;
 		prevMouseY = y;
+		pressedMouseX = x;
+		pressedMouseY = y;
 	}
 
 	if (currentModelTransformMode == OBJECT_NONE
@@ -848,29 +851,20 @@ void mouse(int button, int state, int x, int y) {
 //TODO: fill below with appropriate transforms
 //		also possibly need additional state information
 void motion(int x, int y) {
-	float adjust = 0.01;
-	float xDiff = (x - prevMouseX) * adjust;
-	float yDiff = -(y - prevMouseY) * adjust;
-	float zDiff = -(x - prevMouseX) * adjust;
-
-	float angle = 10;
-	float scale = 1.05;
-	if (selectedAxis == 0 && xDiff < 0) {
-		angle = -10;
-		scale = 0.9;
-	} else if (selectedAxis == 1) {
-		if (yDiff > 0) {
-			scale = 1.1;
-		} else if (yDiff < 0) {
-			scale = 0.95;
-		}
-	} else if (selectedAxis == 2 && xDiff > 0) {
-		scale = 0.9;
-	}
+	float OBJECT_TRANSLATE_ADJUST = 0.01;
+	float OBJECT_ROTATE_ADJUST = 0.01;
+	float OBJECT_SCALE_ADJUST = 0.01;
+	float SCENE_TRANSLATE_ADJUST = 0.001;
+	float SCENE_DOLLY_ADJUST = 0.01;
 
 	if (currentModelTransformMode == OBJECT_TRANSLATE) {
 		if (picked == -1)
 			return;
+
+		float xDiff = (x - prevMouseX) * OBJECT_TRANSLATE_ADJUST;
+		float yDiff = -(y - prevMouseY) * OBJECT_TRANSLATE_ADJUST;
+		float zDiff = -(x - prevMouseX) * OBJECT_TRANSLATE_ADJUST;
+
 		switch (selectedAxis) {
 		case -1:
 			xDiff = 0;
@@ -893,24 +887,42 @@ void motion(int x, int y) {
 		}
 		myObjects[picked].translate = myObjects[picked].translate
 				* Translate(xDiff, yDiff, zDiff);
-		prevMouseX = x;
-		prevMouseY = y;
-
 	} else if (currentModelTransformMode == OBJECT_ROTATE) {
 		if (picked == -1)
 			return;
+
+		float xDiff = (x - prevMouseX) * OBJECT_ROTATE_ADJUST;
+		float yDiff = -(y - prevMouseY) * OBJECT_ROTATE_ADJUST;
+		float zDiff = -(x - prevMouseX) * OBJECT_ROTATE_ADJUST;
+		float angle = 0;
+
 		switch (selectedAxis) {
 		case -1:
 			break;
 		case 0:
+			if (yDiff < 0)
+				angle = -10;
+			else if (yDiff > 0)
+				angle = 10;
+
 			myObjects[picked].rotate = myObjects[picked].rotate
 					* RotateX(angle);
 			break;
 		case 1:
+			if (xDiff < 0)
+				angle = -10;
+			else if (xDiff > 0)
+				angle = 10;
+
 			myObjects[picked].rotate = myObjects[picked].rotate
 					* RotateY(angle);
 			break;
 		case 2:
+			if (yDiff > 0)
+				angle = -10;
+			else if (yDiff < 0)
+				angle = 10;
+
 			myObjects[picked].rotate = myObjects[picked].rotate
 					* RotateZ(angle);
 			break;
@@ -919,36 +931,57 @@ void motion(int x, int y) {
 	} else if (currentModelTransformMode == OBJECT_SCALE) {
 		if (picked == -1)
 			return;
+
+		float xDiff = (x - prevMouseX) * OBJECT_SCALE_ADJUST;
+		float yDiff = -(y - prevMouseY) * OBJECT_SCALE_ADJUST;
+		float zDiff = -(x - prevMouseX) * OBJECT_SCALE_ADJUST;
+		float scale = 1;
+
 		switch (selectedAxis) {
 		case -1:
 			break;
 		case 0:
+			if (xDiff < 0)
+				scale = 0.9;
+			else if (xDiff > 0)
+				scale = 1.1;
+
 			myObjects[picked].scale = myObjects[picked].scale
 					* Scale(scale, 1, 1);
 			break;
 		case 1:
+			if (yDiff < 0)
+				scale = 0.9;
+			else if (yDiff > 0)
+				scale = 1.1;
+
 			myObjects[picked].scale = myObjects[picked].scale
 					* Scale(1, scale, 1);
 			break;
 		case 2:
+			if (xDiff > 0)
+				scale = 0.9;
+			else if (xDiff < 0)
+				scale = 1.1;
+
 			myObjects[picked].scale = myObjects[picked].scale
 					* Scale(1, 1, scale);
 			break;
 		}
 
 	} else if (currentViewTransformMode == SCENE_ROTATE) {
-		trot += (x - prevMouseX) / 2;
+		trot += (x - pressedMouseX) / 2;
 		if (trot > 360)
 			trot -= 360;
 		if (trot < 0)
 			trot += 360;
-		prevMouseX = x;
-		prot += (y - prevMouseY) / 2;
+		pressedMouseX = x;
+		prot += (y - pressedMouseY) / 2;
 		if (prot < -90)
 			prot = -90;
 		if (prot > 90)
 			prot = 90;
-		prevMouseY = y;
+		pressedMouseY = y;
 
 		fx = r * cos(prot * deg) * cos(trot * deg);
 		fy = r * sin(prot * deg);
@@ -956,20 +989,28 @@ void motion(int x, int y) {
 		glutPostRedisplay();
 
 	} else if (currentViewTransformMode == SCENE_TRANSLATE) {
+		float xDiff = (x - prevMouseX) * SCENE_TRANSLATE_ADJUST;
+		float yDiff = -(y - prevMouseY) * SCENE_TRANSLATE_ADJUST;
+		float zDiff = -(x - prevMouseX) * SCENE_TRANSLATE_ADJUST;
+
 		fx += xDiff * 10;
 		fy += yDiff * 10;
 		ax += xDiff * 10;
 		ay += yDiff * 10;
-		prevMouseX = x;
-		prevMouseY = y;
+
 		glutPostRedisplay();
 	} else if (currentViewTransformMode == SCENE_DOLLY) {
+		float zDiff = -(x - prevMouseX) * SCENE_DOLLY_ADJUST;
+
 		float oldFz = fz;
-		fz += yDiff * 0.1;
+		fz += zDiff;
 		fx = (fz * fx) / oldFz;
 		fy = (fz * fy) / oldFz;
 		glutPostRedisplay();
 	}
+
+	prevMouseX = x;
+	prevMouseY = y;
 
 	display();
 }
@@ -1163,10 +1204,9 @@ int main(int argc, char** argv) {
 		zNear = atof(argv[3]);
 		zFar = atof(argv[4]);
 
-		float light_x = atof(argv[5]);
-		float light_y = atof(argv[6]);
-		float light_z = atof(argv[7]);
-		light_position = point4(light_x, light_y, light_z, 1.0);
+		lightPos[0] = atof(argv[5]);
+		lightPos[1] = atof(argv[6]);
+		lightPos[2] = atof(argv[7]);
 	} else if (strcmp(argv[1], "O") == 0) {
 		tranformType = orthographic;
 		left_ = atof(argv[2]);
@@ -1176,10 +1216,9 @@ int main(int argc, char** argv) {
 		zNear = atof(argv[6]);
 		zFar = atof(argv[7]);
 
-		float light_x = atof(argv[8]);
-		float light_y = atof(argv[9]);
-		float light_z = atof(argv[10]);
-		light_position = point4(light_x, light_y, light_z, 1.0);
+		lightPos[0] = atof(argv[8]);
+		lightPos[1] = atof(argv[9]);
+		lightPos[2] = atof(argv[10]);
 	} else {
 		cerr
 				<< "Usage: ./SimpleProgram (O left right bottom top near far)|(P fov near far)"
