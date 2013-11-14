@@ -1221,7 +1221,7 @@ int main(int argc, char** argv) {
 		lightPos[2] = atof(argv[10]);
 	} else {
 		cerr
-				<< "Usage: ./SimpleProgram (O left right bottom top near far)|(P fov near far)"
+				<< "Usage: ./SimpleProgram (O left right bottom top near far)|(P fovy near far) light_x light_y light_z"
 				<< endl;
 		exit(1);
 	}
