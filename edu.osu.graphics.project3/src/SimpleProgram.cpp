@@ -25,6 +25,9 @@
 #ifdef __APPLE__
 #  include <OpenGL/gl3.h>
 #endif
+
+#include <stdio.h>
+#include <string.h>
 using namespace graphics;
 
 typedef Angel::vec4 color4;
@@ -77,9 +80,9 @@ SceneTransformMode currentViewTransformMode = SCENE_NONE;
 //----------------------------------------------------------------------------
 
 // default parameters
-const point4 DEFAULT_EYE = point4(2,2,2,1);
-const point4 DEFAULT_AT = point4(0,0,0,1);
-const vec4 DEFAULT_UP = vec4(0,1,0,0);
+const point4 DEFAULT_EYE = point4(2, 2, 2, 1);
+const point4 DEFAULT_AT = point4(0, 0, 0, 1);
+const vec4 DEFAULT_UP = vec4(0, 1, 0, 0);
 
 // declarations and default camera/projection parameters
 float fx = DEFAULT_EYE.x;
@@ -94,7 +97,7 @@ float uz = DEFAULT_UP.z;
 float aspect = 1.0;
 float fovy, zNear, zFar;
 float left_, right_, bottom_, top_;
-
+float lightPos[3];
 //----------------------------------------------------------------------------
 
 // declarations for object selection functionality
@@ -272,7 +275,7 @@ struct Manipulator {
 	GLubyte zSelectionG;
 	GLubyte zSelectionB;
 	GLubyte zSelectionA;
-
+	void display();
 	void init() {
 		xSelectionR = 0;
 		xSelectionG = 200;
@@ -428,8 +431,101 @@ void myFunc(Object object, Face face, struct ObjectInstance& curObject) {
 		Index++;
 	}
 }
+void drawManipulator(mat4 m) {
+	flag = 0;
+	glUniform1i(SelectFlagLoc, flag);
+
+	// apply model transformation (just translation from origin)
+	glUniformMatrix4fv(model, 1, GL_TRUE, m);
+
+	// draw x axis
+	glBindVertexArray(manipulator.xVaoID);
+	glUniform1i(manipulatorFlagLoc, 1);
+	glDrawArrays(GL_LINES, 0, 2);
+	glDrawArrays(GL_TRIANGLES, 2, 36);
+
+	// draw y axis
+	glBindVertexArray(manipulator.yVaoID);
+	glUniform1i(manipulatorFlagLoc, 2);
+	glDrawArrays(GL_LINES, 0, 2);
+	glDrawArrays(GL_TRIANGLES, 2, 36);
+
+	// draw z axis
+	glBindVertexArray(manipulator.zVaoID);
+	glUniform1i(manipulatorFlagLoc, 3);
+	glDrawArrays(GL_LINES, 0, 2);
+	glDrawArrays(GL_TRIANGLES, 2, 36);
+}
 
 //----------------------------------------------------------------------------
+void display(void) {
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	//  Set camera position and orientation.
+	view = glGetUniformLocation(mainShaderProgram, "View");
+	cout << "fx:" << fx << "fy:" << fy << "fz:" << fz << endl;
+	//Set up the view matrix with LookAt
+	point4 eye(fx, fy, fz, 1.0);
+	point4 at(ax, ay, az, 1.0);
+	vec4 up(ux, uy, uz, 0.0);
+
+	mat4 v = LookAt(eye, at, up);
+	glUniformMatrix4fv(view, 1, GL_TRUE, v);
+
+	//Set the light
+	light_position = point4(lightPos[0], lightPos[1], lightPos[2], 1.0);
+	glUniform4fv( glGetUniformLocation(mainShaderProgram, "LightPosition"), 1,
+			light_position);
+//	glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
+	// projection
+	glUniformMatrix4fv(projection, 1, GL_TRUE, proj);
+
+	// draw ground plane
+	glUniform1i(manipulatorFlagLoc, 0);
+	flag = 0;
+	glUniform1i(SelectFlagLoc, flag);
+	mat4 m = mat4(); // identity
+	glUniformMatrix4fv(model, 1, GL_TRUE, m);
+	glBindVertexArray(worldPlane.vaoID);
+	glDrawArrays( GL_LINES, 0, worldPlane.numVertices);
+
+	// draw objects
+	for (int i = 0; i < counter; i++) {
+		if (i == picked) {
+			// draw manipulator
+			drawManipulator(myObjects[i].translate);
+
+			// draw in wireframe mode
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			glPolygonOffset(1.0, 2); //Try 1.0 and 2 for factor and units
+		}
+
+		//Render transformation
+		mat4 m = myObjects[i].translate * myObjects[i].rotate
+				* myObjects[i].scale;
+		glUniformMatrix4fv(model, 1, GL_TRUE, m);
+
+		// turn off manipulator flag
+		glUniform1i(manipulatorFlagLoc, 0);
+
+		//Render transformation
+		glUniformMatrix4fv(model, 1, GL_TRUE, m);
+
+		//Normal render so set selection Flag to 0
+		flag = 0;
+		glUniform1i(SelectFlagLoc, flag);
+		glBindVertexArray(myObjects[i].vaoID);
+		glDrawArrays( GL_TRIANGLES, 0, myObjects[i].numVertices);
+
+		if (i == picked) {
+			// revert back to fill mode
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		}
+	}
+
+	//comment this to see the color render
+	glutSwapBuffers();
+}
 
 // loads an object into the scene from a file
 void loadObjectFromFile(string filename) {
@@ -492,6 +588,7 @@ void loadObjectFromFile(string filename) {
 	glEnableVertexAttribArray(vNormal);
 	glVertexAttribPointer(vNormal, 4, GL_FLOAT, GL_FALSE, 0,
 			BUFFER_OFFSET(pointsSize));
+	display();
 }
 
 //----------------------------------------------------------------------------
@@ -602,8 +699,8 @@ void mouse(int button, int state, int x, int y) {
 		prevMouseY = y;
 	}
 
-	if (currentModelTransformMode == OBJECT_NONE || currentViewTransformMode != SCENE_NONE)
-	{
+	if (currentModelTransformMode == OBJECT_NONE
+			|| currentViewTransformMode != SCENE_NONE) {
 		picked = -1;
 		selectedAxis = -1;
 		return;
@@ -748,12 +845,10 @@ void mouse(int button, int state, int x, int y) {
 //----------------------------------------------------------------------------
 // motion callback - calls when mouse is pressed and dragging in window
 
-void display();
-
 //TODO: fill below with appropriate transforms
 //		also possibly need additional state information
 void motion(int x, int y) {
-	float adjust = 0.001;
+	float adjust = 0.01;
 	float xDiff = (x - prevMouseX) * adjust;
 	float yDiff = -(y - prevMouseY) * adjust;
 	float zDiff = -(x - prevMouseX) * adjust;
@@ -774,6 +869,8 @@ void motion(int x, int y) {
 	}
 
 	if (currentModelTransformMode == OBJECT_TRANSLATE) {
+		if (picked == -1)
+			return;
 		switch (selectedAxis) {
 		case -1:
 			xDiff = 0;
@@ -798,7 +895,10 @@ void motion(int x, int y) {
 				* Translate(xDiff, yDiff, zDiff);
 		prevMouseX = x;
 		prevMouseY = y;
+
 	} else if (currentModelTransformMode == OBJECT_ROTATE) {
+		if (picked == -1)
+			return;
 		switch (selectedAxis) {
 		case -1:
 			break;
@@ -817,7 +917,8 @@ void motion(int x, int y) {
 		}
 
 	} else if (currentModelTransformMode == OBJECT_SCALE) {
-
+		if (picked == -1)
+			return;
 		switch (selectedAxis) {
 		case -1:
 			break;
@@ -864,7 +965,7 @@ void motion(int x, int y) {
 		glutPostRedisplay();
 	} else if (currentViewTransformMode == SCENE_DOLLY) {
 		float oldFz = fz;
-		fz += zDiff;
+		fz += yDiff * 0.1;
 		fx = (fz * fx) / oldFz;
 		fy = (fz * fy) / oldFz;
 		glutPostRedisplay();
@@ -875,95 +976,7 @@ void motion(int x, int y) {
 
 //----------------------------------------------------------------------------
 
-void drawManipulator(mat4 m) {
-	flag = 0;
-	glUniform1i(SelectFlagLoc, flag);
-
-	// apply model transformation (just translation from origin)
-	glUniformMatrix4fv(model, 1, GL_TRUE, m);
-
-	// draw x axis
-	glBindVertexArray(manipulator.xVaoID);
-	glUniform1i(manipulatorFlagLoc, 1);
-	glDrawArrays(GL_LINES, 0, 2);
-	glDrawArrays(GL_TRIANGLES, 2, 36);
-
-	// draw y axis
-	glBindVertexArray(manipulator.yVaoID);
-	glUniform1i(manipulatorFlagLoc, 2);
-	glDrawArrays(GL_LINES, 0, 2);
-	glDrawArrays(GL_TRIANGLES, 2, 36);
-
-	// draw z axis
-	glBindVertexArray(manipulator.zVaoID);
-	glUniform1i(manipulatorFlagLoc, 3);
-	glDrawArrays(GL_LINES, 0, 2);
-	glDrawArrays(GL_TRIANGLES, 2, 36);
-}
 bool initilized = false;
-void display(void) {
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	//  Set camera position and orientation.
-	view = glGetUniformLocation(mainShaderProgram, "View");
-	cout << "fx:" << fx << "fy:" << fy << "fz:" << fz << endl;
-	//Set up the view matrix with LookAt
-	point4 eye(fx, fy, fz, 1.0);
-	point4 at(ax, ay, az, 1.0);
-	vec4 up(ux, uy, uz, 0.0);
-
-	mat4 v = LookAt(eye, at, up);
-	glUniformMatrix4fv(view, 1, GL_TRUE, v);
-
-	// projection
-	glUniformMatrix4fv(projection, 1, GL_TRUE, proj);
-
-	// draw ground plane
-	glUniform1i(manipulatorFlagLoc, 0);
-	flag = 0;
-	glUniform1i(SelectFlagLoc, flag);
-	mat4 m = mat4(); // identity
-	glUniformMatrix4fv(model, 1, GL_TRUE, m);
-	glBindVertexArray(worldPlane.vaoID);
-	glDrawArrays( GL_LINES, 0, worldPlane.numVertices);
-
-	// draw objects
-	for (int i = 0; i < counter; i++) {
-		if (i == picked) {
-			// draw manipulator
-			drawManipulator(myObjects[i].translate);
-
-			// draw in wireframe mode
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			glPolygonOffset(1.0, 2); //Try 1.0 and 2 for factor and units
-		}
-
-		//Render transformation
-		mat4 m = myObjects[i].translate * myObjects[i].rotate
-				* myObjects[i].scale;
-		glUniformMatrix4fv(model, 1, GL_TRUE, m);
-
-		// turn off manipulator flag
-		glUniform1i(manipulatorFlagLoc, 0);
-
-		//Render transformation
-		glUniformMatrix4fv(model, 1, GL_TRUE, m);
-
-		//Normal render so set selection Flag to 0
-		flag = 0;
-		glUniform1i(SelectFlagLoc, flag);
-		glBindVertexArray(myObjects[i].vaoID);
-		glDrawArrays( GL_TRIANGLES, 0, myObjects[i].numVertices);
-
-		if (i == picked) {
-			// revert back to fill mode
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		}
-	}
-
-	//comment this to see the color render
-	glutSwapBuffers();
-}
 
 //----------------------------------------------------------------------------
 
@@ -1025,6 +1038,22 @@ void mainMenuCallback(int id) {
 
 		cout << "All view transformations reset." << endl << endl;
 	} else if (id == 4) {
+		string lightString;
+		cout << "Input light position x,y,z: ";
+		cin >> lightString;
+		if (!lightString.empty()) {
+			char * pch;
+			pch = strtok((char*) lightString.c_str(), ",");
+			lightPos[0] = atof(pch);
+			cout << pch << endl;
+			for (int i = 1; i < 3; i++) {
+				pch = strtok(NULL, ",");
+				lightPos[i] = atof(pch);
+			}
+			display();
+		}
+
+	} else if (id == 5) {
 		exit(0);
 	}
 }
@@ -1089,33 +1118,31 @@ void makeMenu() {
 	glutAddSubMenu("Scene Transformation", sceneTransformSubMenu);
 	glutAddMenuEntry("Reset Model Transformations", 2);
 	glutAddMenuEntry("Reset View Transformations", 3);
-	glutAddMenuEntry("Exit", 4);
+	glutAddMenuEntry("Set Light", 4);
+	glutAddMenuEntry("Exit", 5);
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 }
 
 //----------------------------------------------------------------------------
 
 // reshaping window
-void reshape(int w, int h)
-{
-	float ar = 1.0*w/h; 
-	if (tranformType == perspective)
-	{
+void reshape(int w, int h) {
+	float ar = 1.0 * w / h;
+	if (tranformType == perspective) {
 		aspect = ar;
-		glViewport(0,0,w,h);
+		glViewport(0, 0, w, h);
 		proj = Perspective(fovy, aspect, zNear, zFar);
-	}
-	else if (tranformType == orthographic)
-	{
-		glViewport(0,0,w,h); 
-		if( ar < 1.0) { // (w <= h ){ //taller 
-			proj = Ortho(left_, right_, left_ * (GLfloat) h / (GLfloat) w, 
-			right_ * (GLfloat) h / (GLfloat) w, zNear, zFar); 
-		} else //wider 
-		{ 
-			proj = Ortho(bottom_ * (GLfloat) w / (GLfloat) h, top_ * 
-			(GLfloat) w / (GLfloat) h, bottom_, top_, zNear, zFar); 
-		} 
+	} else if (tranformType == orthographic) {
+		glViewport(0, 0, w, h);
+		if (ar < 1.0) { // (w <= h ){ //taller
+			proj = Ortho(left_, right_, left_ * (GLfloat) h / (GLfloat) w,
+					right_ * (GLfloat) h / (GLfloat) w, zNear, zFar);
+		} else //wider
+		{
+			proj = Ortho(bottom_ * (GLfloat) w / (GLfloat) h,
+					top_ * (GLfloat) w / (GLfloat) h, bottom_, top_, zNear,
+					zFar);
+		}
 	}
 }
 
@@ -1135,7 +1162,7 @@ int main(int argc, char** argv) {
 		fovy = atof(argv[2]);
 		zNear = atof(argv[3]);
 		zFar = atof(argv[4]);
-		
+
 		float light_x = atof(argv[5]);
 		float light_y = atof(argv[6]);
 		float light_z = atof(argv[7]);
