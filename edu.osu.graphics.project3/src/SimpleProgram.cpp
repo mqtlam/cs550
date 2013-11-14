@@ -602,6 +602,13 @@ void mouse(int button, int state, int x, int y) {
 		prevMouseY = y;
 	}
 
+	if (currentModelTransformMode == OBJECT_NONE || currentViewTransformMode != SCENE_NONE)
+	{
+		picked = -1;
+		selectedAxis = -1;
+		return;
+	}
+
 	//printf("Mouse button pressed at %d, %d\n", x, y);
 	//0 is reserved for the background color so skip it.
 
@@ -1043,14 +1050,23 @@ void sceneMenuCallback(int id) {
 		cout << "Switched to SCENE Rotate mode." << endl;
 		currentViewTransformMode = SCENE_ROTATE;
 		currentModelTransformMode = OBJECT_NONE;
+		picked = -1;
+		selectedAxis = -1;
+		glutPostRedisplay();
 	} else if (id == 2) {
 		cout << "Switched to SCENE TRANSLATE mode." << endl;
 		currentViewTransformMode = SCENE_TRANSLATE;
 		currentModelTransformMode = OBJECT_NONE;
+		picked = -1;
+		selectedAxis = -1;
+		glutPostRedisplay();
 	} else if (id == 3) {
 		cout << "Switched to SCENE DOLLY mode." << endl;
 		currentViewTransformMode = SCENE_DOLLY;
 		currentModelTransformMode = OBJECT_NONE;
+		picked = -1;
+		selectedAxis = -1;
+		glutPostRedisplay();
 	}
 
 }
