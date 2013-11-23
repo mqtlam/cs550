@@ -8,7 +8,7 @@
 #define deg PI_DIV_180
 
 // COMMENT OR UNCOMMENT LINE BELOW DEPENDING ON PLATFORM
-#define USE_WINDOWS
+//#define USE_WINDOWS
 
 // Include the vector and matrix utilities from the textbook, as well as some
 // macro definitions.

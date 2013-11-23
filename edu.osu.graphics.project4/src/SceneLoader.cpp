@@ -6,7 +6,7 @@
  */
 
 // COMMENT OR UNCOMMENT LINE BELOW DEPENDING ON PLATFORM
-#define USE_WINDOWS
+//#define USE_WINDOWS
 
 #ifdef USE_WINDOWS
 #include "../headers/SceneLoader.h"
