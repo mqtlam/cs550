@@ -35,6 +35,8 @@ GLuint model; // model matrix uniform shader variable location
 GLuint view;  // view matrix uniform shader variable location
 GLuint projection; // projection matrix uniform shader variable location
 
+GLuint depthFlagLoc;
+
 //----------------------------------------------------------------------------
 
 //----------------------------------------------------------------------------
@@ -185,7 +187,8 @@ void drawImage() {
 			// draw two unit triangles based on our defined units: horzUnit, vertUnit
 			// first draw relative to origin, then subtract 1 in both coordinates to put at (-1, -1)
 
-			float depth = 1.0*imageChannel.gray[row][col]/255;
+			// NOTE: depth or z-value of point cloud is determined in shader
+			float depth = 0;//1.0*imageChannel.gray[row][col]/255;
 
 			// first triangle
 			imageMesh.vertices[index] = vec4(col * horzUnit - 1, -row * vertUnit + 1, depth, 1);
@@ -202,7 +205,6 @@ void drawImage() {
 
 			// assign appropriate color:
 			float rgb[3] = { 1.0*imageChannel.r[row][col]/255, 1.0*imageChannel.g[row][col]/255, 1.0*imageChannel.b[row][col]/255 };
-			//float rgb[3] = {1,0,0};
 			for (int i = 0; i < 6; i++)
 				imageMesh.colors[index + i] = vec3(rgb[0], rgb[1], rgb[2]);
 		}
@@ -264,8 +266,9 @@ void drawImage() {
 	glEnableVertexAttribArray(colorLoc);
 	glVertexAttribPointer(colorLoc, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
 
-	// Make the background white
-	glClearColor(1.0, 1.0, 1.0, 1.0);
+	depthFlagLoc = glGetUniformLocation(program,
+		"depthFlag");
+	glUniform1i(depthFlagLoc, 0);
 
 	// Retrieve transformation uniform variable locations
 	//model_view = glGetUniformLocation(program, "ModelView");
@@ -278,7 +281,9 @@ void drawImage() {
 	glUniformMatrix4fv(model, 1, GL_TRUE, m);
 
 	//Set up the view matrix with LookAt
-	point4 eye(0, 0, 5, 1.0);
+	//the image is centered at the origin and aligned with the x, y axes
+	//the z values range from 0 to 1.
+	point4 eye(5, 5, 5, 1.0);
 	point4 at(0, 0, 0, 1.0);
 	vec4 up(0, 1, 0, 0.0);
 
@@ -351,18 +356,27 @@ void menu(int menuItem) {
 			cin >> fileName;
 		}
 		loadImage(fileName.c_str());
+		glutPostRedisplay();
 		break;
 	case rChannel:
-
+		glUniform1i(depthFlagLoc, 1);
+		cout << "Switched to red channel." << endl;
+		glutPostRedisplay();
 		break;
 	case gChannel:
-
+		glUniform1i(depthFlagLoc, 2);
+		cout << "Switched to green channel." << endl;
+		glutPostRedisplay();
 		break;
 	case bChannel:
-
+		glUniform1i(depthFlagLoc, 3);
+		cout << "Switched to blue channel." << endl;
+		glutPostRedisplay();
 		break;
 	case grayChannel:
-
+		glUniform1i(depthFlagLoc, 0);
+		cout << "Switched to grayscale." << endl;
+		glutPostRedisplay();
 		break;
 	}
 }
@@ -374,10 +388,10 @@ void createMenues() {
 
 // Add menu items
 	glutAddMenuEntry("Load Image", load);
-	glutAddMenuEntry("Switch RGB", rChannel);
-	glutAddMenuEntry("Switch RGB", gChannel);
-	glutAddMenuEntry("Switch RGB", bChannel);
-	glutAddMenuEntry("Switch RGB", grayChannel);
+	glutAddMenuEntry("Switch to Red Channel", rChannel);
+	glutAddMenuEntry("Switch to Green Channel", gChannel);
+	glutAddMenuEntry("Switch to Blue Channel", bChannel);
+	glutAddMenuEntry("Switch to Grayscale", grayChannel);
 // Associate a mouse button with menu
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 }
