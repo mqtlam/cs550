@@ -37,7 +37,7 @@ typedef Angel::vec4 point4;
 #define deg PI_DIV_180
 
 // Lighting
-point4 light_position;
+//point4 light_position;
 
 //---------------------------Camera Stuff------------------------------
 
@@ -60,7 +60,7 @@ bool isMousePressed = false;
 int prevMouseX, prevMouseY;
 
 // default parameters
-const point4 DEFAULT_EYE = point4(5, 5, 5, 1.0);
+const point4 DEFAULT_EYE = point4(0, 0, 5, 1.0);
 const point4 DEFAULT_AT = point4(0, 0, 0, 1);
 const vec4 DEFAULT_UP = vec4(0, 1, 0, 0);
 
@@ -75,9 +75,14 @@ float ux = DEFAULT_UP.x;
 float uy = DEFAULT_UP.y;
 float uz = DEFAULT_UP.z;
 float aspect = 1.0;
-float fovy, zNear, zFar;
-float left_, right_, bottom_, top_;
-float lightPos[3];
+float fovy;
+float zNear = 0.1;
+float zFar = 10;
+float left_ = -1;
+float right_ = 1;
+float bottom_ = -1;
+float top_ = 1;
+//float lightPos[3];
 
 int NumVertices = 0; //(6 faces)(2 triangles/face)(3 vertices/triangle)
 
@@ -137,6 +142,11 @@ void init() {
 	glUniformMatrix4fv(view, 1, GL_TRUE, v);
 	glEnable( GL_DEPTH_TEST);
 	glClearColor(1.0, 1.0, 1.0, 1.0);
+
+	//Setup the view volume
+	//mat4 proj = Perspective(45, 1, 0.1, 20);
+	mat4 proj = Ortho(left_, right_, bottom_, top_, zNear, zFar);
+	glUniformMatrix4fv(projection, 1, GL_TRUE, proj);
 }
 
 //----------------------------------------------------------------------------
@@ -181,14 +191,13 @@ void display(void) {
 
 	//Setup the view volume
 	//mat4 proj = Perspective(45, 1, 0.1, 20);
-	mat4 proj = Ortho(-1, 1, -1, 1, 0.1, 20);
-
+	mat4 proj = Ortho(left_, right_, bottom_, top_, zNear, zFar);
 	glUniformMatrix4fv(projection, 1, GL_TRUE, proj);
 
-	//Set the light
-	light_position = point4(lightPos[0], lightPos[1], lightPos[2], 1.0);
-	glUniform4fv( glGetUniformLocation(mainShaderProgram, "LightPosition"), 1,
-			light_position);
+	////Set the light
+	//light_position = point4(lightPos[0], lightPos[1], lightPos[2], 1.0);
+	//glUniform4fv( glGetUniformLocation(mainShaderProgram, "LightPosition"), 1,
+	//		light_position);
 
 	// z buffer stuff
 	glEnable( GL_DEPTH_TEST);
@@ -348,8 +357,7 @@ void drawImage() {
 
 	//Setup the view volume
 	//mat4 proj = Perspective(45, 1, 0.1, 20);
-	mat4 proj = Ortho(-1, 1, -1, 1, 0.1, 20);
-
+	mat4 proj = Ortho(left_, right_, bottom_, top_, zNear, zFar);
 	glUniformMatrix4fv(projection, 1, GL_TRUE, proj);
 
 	// z buffer stuff
@@ -449,6 +457,10 @@ void menuCallBack(int menuItem) {
 		ux = DEFAULT_UP.x;
 		uy = DEFAULT_UP.y;
 		uz = DEFAULT_UP.z;
+		left_ = -1;
+		right_ = 1;
+		bottom_ = -1;
+		top_ = 1;
 
 		display();
 
@@ -469,10 +481,13 @@ void mouse(int button, int state, int x, int y) {
 
 void motion(int x, int y) {
 	cout << "mouse" << endl;
-	float adjust = 0.001;
-	float xDiff = +(x - prevMouseX) * adjust;
-	float yDiff = -(y - prevMouseY) * adjust;
-	float zDiff = -(x - prevMouseX) * adjust;
+	const float SCENE_TRANSLATE_ADJUST = 0.001;
+	const float SCENE_DOLLY_ADJUST = 0.01;
+
+	//float adjust = 0.001;
+	float xDiff = +(x - prevMouseX);
+	float yDiff = -(y - prevMouseY);
+	float zDiff = -(x - prevMouseX);
 
 	if (currentViewTransformMode == SCENE_ROTATE) {
 		trot += (x - prevMouseX) / 2;
@@ -494,20 +509,28 @@ void motion(int x, int y) {
 		glutPostRedisplay();
 
 	} else if (currentViewTransformMode == SCENE_TRANSLATE) {
-		fx += xDiff;
-		fy += yDiff;
-		ax += xDiff;
-		ay += yDiff;
+		fx += xDiff * SCENE_TRANSLATE_ADJUST;
+		fy += yDiff * SCENE_TRANSLATE_ADJUST;
+		ax += xDiff * SCENE_TRANSLATE_ADJUST;
+		ay += yDiff * SCENE_TRANSLATE_ADJUST;
 		prevMouseX = x;
 		prevMouseY = y;
 		glutPostRedisplay();
 	} else if (currentViewTransformMode == SCENE_DOLLY) {
 		float oldFz = fz;
-		fz += yDiff * 0.1;
-		fx = (fz * fx) / oldFz;
-		fy = (fz * fy) / oldFz;
+		//fz += yDiff * 0.1;
+		//fx = (fz * fx) / oldFz;
+		//fy = (fz * fy) / oldFz;
+		left_ += xDiff * SCENE_DOLLY_ADJUST;
+		right_ += -xDiff * SCENE_DOLLY_ADJUST;
+		bottom_ += xDiff * SCENE_DOLLY_ADJUST;
+		top_ += -xDiff * SCENE_DOLLY_ADJUST;
+
 		glutPostRedisplay();
 	}
+
+	prevMouseX = x;
+	prevMouseY = y;
 
 //	display();
 }
@@ -543,9 +566,8 @@ void createMenues() {
 	glutAddMenuEntry("Switch to Green Channel", gChannel);
 	glutAddMenuEntry("Switch to Blue Channel", bChannel);
 	glutAddMenuEntry("Switch to Grayscale", grayChannel);
-
-//
 	glutAddSubMenu("Scene Transformation", sceneTransformSubMenu);
+	glutAddMenuEntry("Reset All Transformations", resetScene);
 // Associate a mouse button with menu
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 }
