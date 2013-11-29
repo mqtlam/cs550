@@ -111,6 +111,7 @@ struct ImageChannel {
 	int ** g;
 	int ** b;
 	int ** gray;
+	int ** depth;
 };
 
 // Create a vertex array object---OpenGL needs this to manage the Vertex
@@ -406,23 +407,75 @@ void loadImage(const char* fileName) {
 
 	drawImage();
 }
+
+void loadRGBDImage(const char* rgbFileName, const char* depthFileName) {
+	if (imageChannel.width != -1 && imageChannel.height != -1) {
+		delete imageChannel.r;
+		delete imageChannel.g;
+		delete imageChannel.b;
+		delete imageChannel.gray;
+	}
+	cout << "Loading image " << rgbFileName << "..." << endl;
+	Mat image = imread(rgbFileName);
+	Mat depthImage = imread(depthFileName);
+	Mat grayImage;
+	cvtColor(image, grayImage, CV_BGR2GRAY);
+	imageChannel.width = image.cols;
+	imageChannel.height = image.rows;
+	imageChannel.r = new int*[imageChannel.height];
+	imageChannel.g = new int*[imageChannel.height];
+	imageChannel.b = new int*[imageChannel.height];
+	imageChannel.gray = new int*[imageChannel.height];
+	imageChannel.depth = new int*[imageChannel.height];
+	for (int y = 0; y < image.rows; y += 1) {
+		imageChannel.r[y] = new int[imageChannel.width];
+		imageChannel.g[y] = new int[imageChannel.width];
+		imageChannel.b[y] = new int[imageChannel.width];
+		imageChannel.gray[y] = new int[imageChannel.width];
+		imageChannel.depth[y] = new int[imageChannel.width];
+		for (int x = 0; x < image.cols; x += 1) {
+			const Vec3b pixelColor = image.at<Vec3b>(y, x);
+			imageChannel.b[y][x] = (short) pixelColor[0];
+			imageChannel.g[y][x] = (short) pixelColor[1];
+			imageChannel.r[y][x] = (short) pixelColor[2];
+			imageChannel.gray[y][x] = grayImage.at<uchar>(y, x);
+			imageChannel.gray[y][x] = depthImage.at<uchar>(y, x);
+		}
+	}
+	cout << "Load successfully." << endl;
+	drawImage();
+}
+
 enum MENU_ITEMS {
-	load, rChannel, gChannel, bChannel, grayChannel, resetScene
+	loadRGB, loadRGBD, rChannel, gChannel, bChannel, grayChannel, resetScene
 };
 // Assign a default value
 // Menu handling function declaration
 void menuCallBack(int menuItem) {
 	cout << "menuCallBack" << endl;
-	string fileName;
+	string rgbFileName, depthFileName;
 	switch (menuItem) {
-	case load:
-		while (fileName.empty()) {
+	case loadRGB:
+		while (rgbFileName.empty()) {
 			cout << "Input image file name: ";
-			cin >> fileName;
+			cin >> rgbFileName;
 		}
-		loadImage(fileName.c_str());
+		loadImage(rgbFileName.c_str());
 		glutPostRedisplay();
 		break;
+	case loadRGBD:
+		while (rgbFileName.empty()) {
+			cout << "Input RGB image file name: ";
+			cin >> rgbFileName;
+		}
+		while (depthFileName.empty()) {
+			cout << "Input Depth image file name: ";
+			cin >> depthFileName;
+		}
+		loadRGBDImage(rgbFileName.c_str(), depthFileName.c_str());
+		glutPostRedisplay();
+		break;
+
 	case rChannel:
 		glUniform1i(depthFlagLoc, 1);
 		depthMap = 1;
@@ -561,7 +614,8 @@ void createMenues() {
 // Create menue
 	glutCreateMenu(menuCallBack);
 // Add menu items
-	glutAddMenuEntry("Load Image", load);
+	glutAddMenuEntry("Load RGB Image", loadRGB);
+	glutAddMenuEntry("Load RGBD Images", loadRGBD);
 	glutAddMenuEntry("Switch to Red Channel", rChannel);
 	glutAddMenuEntry("Switch to Green Channel", gChannel);
 	glutAddMenuEntry("Switch to Blue Channel", bChannel);
