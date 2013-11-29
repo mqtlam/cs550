@@ -6,12 +6,14 @@ out vec4 color;
 uniform mat4 Model;
 uniform mat4 View;
 uniform mat4 Projection;
-uniform int depthFlag; // 0 = grayscale, 1 = red, 2 = green, 3 = blue channel
+uniform int depthFlag; // 0 = grayscale, 1 = red, 2 = green, 3 = blue channel, 4 = depth channel
 
 void main()
 {
 	vec4 pos = vPosition;
 	vec4 newColor = vColor;
+	float depth = vColor.a;
+	newColor.a = 1;
 
 	if (depthFlag == 1) {
 		pos.z = vColor.r;
@@ -22,6 +24,8 @@ void main()
 	} else if (depthFlag == 3) {
 		pos.z = vColor.b;
 		newColor.rg = vec2(0, 0);
+	} else if (depthFlag == 4) {
+		pos.z = -depth;
 	} else {
 		pos.z = 0.21*vColor.r + 0.71*vColor.g + 0.08*vColor.b;
 	}

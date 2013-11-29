@@ -98,7 +98,7 @@ GLuint depthFlagLoc;
 struct ImageMesh {
 	int numTrianglePoints;
 	vec4* vertices;
-	vec3* colors;
+	vec4* colors;
 };
 
 // stores all image meshes
@@ -112,6 +112,7 @@ struct ImageChannel {
 	int ** b;
 	int ** gray;
 	int ** depth;
+	int maxDepth;
 };
 
 // Create a vertex array object---OpenGL needs this to manage the Vertex
@@ -119,7 +120,7 @@ struct ImageChannel {
 GLuint vao[1];
 ImageChannel imageChannel;
 
-int depthMap = 0;
+int depthFlag = 0;
 // OpenGL initialization
 void init() {
 
@@ -177,7 +178,7 @@ void display(void) {
 	//Set up model matrix
 	mat4 m; // identity
 	glUniformMatrix4fv(model, 1, GL_TRUE, m);
-	glUniform1i(depthFlagLoc, depthMap);
+	glUniform1i(depthFlagLoc, depthFlag);
 	//Set up the view matrix with LookAt
 	//the image is centered at the origin and aligned with the x, y axes
 	//the z values range from 0 to 1.
@@ -245,7 +246,7 @@ void drawImage() {
 
 	imageMesh.numTrianglePoints = 6 * nRows * nCols;
 	imageMesh.vertices = new vec4[imageMesh.numTrianglePoints];
-	imageMesh.colors = new vec3[imageMesh.numTrianglePoints];
+	imageMesh.colors = new vec4[imageMesh.numTrianglePoints];
 
 	for (int row = 0; row < nRows; row++) {
 		for (int col = 0; col < nCols; col++) {
@@ -274,11 +275,13 @@ void drawImage() {
 					-(row + 1) * vertUnit + 1, depth, 1);
 
 			// assign appropriate color:
-			float rgb[3] = { 1.0 * imageChannel.r[row][col] / 255, 1.0
-					* imageChannel.g[row][col] / 255, 1.0
-					* imageChannel.b[row][col] / 255 };
+			// note the "alpha" channel takes on the depth values
+			float rgbd[4] = { 1.0 * imageChannel.r[row][col] / 255, 
+					1.0 * imageChannel.g[row][col] / 255,
+					1.0 * imageChannel.b[row][col] / 255,
+					1.0 * imageChannel.depth[row][col] / imageChannel.maxDepth};
 			for (int i = 0; i < 6; i++)
-				imageMesh.colors[index + i] = vec3(rgb[0], rgb[1], rgb[2]);
+				imageMesh.colors[index + i] = vec4(rgbd[0], rgbd[1], rgbd[2], rgbd[3]);
 		}
 	}
 
@@ -328,16 +331,16 @@ void drawImage() {
 
 	// Now repeat lots of that stuff for the colors
 	glBindBuffer(GL_ARRAY_BUFFER, buffer[1]);
-	glBufferData(GL_ARRAY_BUFFER, (imageMesh.numTrianglePoints) * sizeof(vec3),
+	glBufferData(GL_ARRAY_BUFFER, (imageMesh.numTrianglePoints) * sizeof(vec4),
 			imageMesh.colors,
 			GL_STATIC_DRAW);
 
 	GLuint colorLoc = glGetAttribLocation(program, "vColor");
 	glEnableVertexAttribArray(colorLoc);
-	glVertexAttribPointer(colorLoc, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
+	glVertexAttribPointer(colorLoc, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
 
 	depthFlagLoc = glGetUniformLocation(program, "depthFlag");
-	glUniform1i(depthFlagLoc, 0);
+	glUniform1i(depthFlagLoc, depthFlag);
 
 	// Retrieve transformation uniform variable locations
 	//model_view = glGetUniformLocation(program, "ModelView");
@@ -379,6 +382,7 @@ void loadImage(const char* fileName) {
 		delete imageChannel.g;
 		delete imageChannel.b;
 		delete imageChannel.gray;
+		delete imageChannel.depth;
 	}
 	cout << "Loading image " << fileName << "..." << endl;
 	Mat image = imread(fileName);
@@ -390,17 +394,24 @@ void loadImage(const char* fileName) {
 	imageChannel.g = new int*[imageChannel.height];
 	imageChannel.b = new int*[imageChannel.height];
 	imageChannel.gray = new int*[imageChannel.height];
+	imageChannel.depth = new int*[imageChannel.height];
+	imageChannel.maxDepth = 0;
 	for (int y = 0; y < image.rows; y += 1) {
 		imageChannel.r[y] = new int[imageChannel.width];
 		imageChannel.g[y] = new int[imageChannel.width];
 		imageChannel.b[y] = new int[imageChannel.width];
 		imageChannel.gray[y] = new int[imageChannel.width];
+		imageChannel.depth[y] = new int[imageChannel.width];
 		for (int x = 0; x < image.cols; x += 1) {
 			const Vec3b pixelColor = image.at<Vec3b>(y, x);
 			imageChannel.b[y][x] = (short) pixelColor[0];
 			imageChannel.g[y][x] = (short) pixelColor[1];
 			imageChannel.r[y][x] = (short) pixelColor[2];
 			imageChannel.gray[y][x] = image.at<uchar>(y, x);
+			imageChannel.depth[y][x] = 0;
+
+			//if (imageChannel.depth[y][x] > imageChannel.maxDepth)
+			//	imageChannel.maxDepth = imageChannel.depth[y][x];
 		}
 	}
 	cout << "Load successfully." << endl;
@@ -414,10 +425,11 @@ void loadRGBDImage(const char* rgbFileName, const char* depthFileName) {
 		delete imageChannel.g;
 		delete imageChannel.b;
 		delete imageChannel.gray;
+		delete imageChannel.depth;
 	}
 	cout << "Loading image " << rgbFileName << "..." << endl;
 	Mat image = imread(rgbFileName);
-	Mat depthImage = imread(depthFileName);
+	Mat depthImage = imread(depthFileName, IPL_DEPTH_16U);
 	Mat grayImage;
 	cvtColor(image, grayImage, CV_BGR2GRAY);
 	imageChannel.width = image.cols;
@@ -427,6 +439,7 @@ void loadRGBDImage(const char* rgbFileName, const char* depthFileName) {
 	imageChannel.b = new int*[imageChannel.height];
 	imageChannel.gray = new int*[imageChannel.height];
 	imageChannel.depth = new int*[imageChannel.height];
+	imageChannel.maxDepth = 0;
 	for (int y = 0; y < image.rows; y += 1) {
 		imageChannel.r[y] = new int[imageChannel.width];
 		imageChannel.g[y] = new int[imageChannel.width];
@@ -439,7 +452,10 @@ void loadRGBDImage(const char* rgbFileName, const char* depthFileName) {
 			imageChannel.g[y][x] = (short) pixelColor[1];
 			imageChannel.r[y][x] = (short) pixelColor[2];
 			imageChannel.gray[y][x] = grayImage.at<uchar>(y, x);
-			imageChannel.gray[y][x] = depthImage.at<uchar>(y, x);
+			imageChannel.depth[y][x] = depthImage.at<uchar>(y, x);
+
+			if (imageChannel.depth[y][x] > imageChannel.maxDepth)
+				imageChannel.maxDepth = imageChannel.depth[y][x];
 		}
 	}
 	cout << "Load successfully." << endl;
@@ -447,7 +463,7 @@ void loadRGBDImage(const char* rgbFileName, const char* depthFileName) {
 }
 
 enum MENU_ITEMS {
-	loadRGB, loadRGBD, rChannel, gChannel, bChannel, grayChannel, resetScene
+	loadRGB, loadRGBD, rChannel, gChannel, bChannel, depthChannel, grayChannel, resetScene
 };
 // Assign a default value
 // Menu handling function declaration
@@ -478,26 +494,32 @@ void menuCallBack(int menuItem) {
 
 	case rChannel:
 		glUniform1i(depthFlagLoc, 1);
-		depthMap = 1;
+		depthFlag = 1;
 		cout << "Switched to red channel." << endl;
 		glutPostRedisplay();
 		break;
 	case gChannel:
 		glUniform1i(depthFlagLoc, 2);
-		depthMap = 2;
+		depthFlag = 2;
 		cout << "Switched to green channel." << endl;
 		glutPostRedisplay();
 		break;
 	case bChannel:
 		glUniform1i(depthFlagLoc, 3);
-		depthMap = 3;
+		depthFlag = 3;
 		cout << "Switched to blue channel." << endl;
 		glutPostRedisplay();
 		break;
 	case grayChannel:
 		glUniform1i(depthFlagLoc, 0);
-		depthMap = 0;
+		depthFlag = 0;
 		cout << "Switched to grayscale." << endl;
+		glutPostRedisplay();
+		break;
+	case depthChannel:
+		glUniform1i(depthFlagLoc, 4);
+		depthFlag = 4;
+		cout << "Switched to depth channel." << endl;
 		glutPostRedisplay();
 		break;
 	case resetScene:
@@ -620,6 +642,7 @@ void createMenues() {
 	glutAddMenuEntry("Switch to Green Channel", gChannel);
 	glutAddMenuEntry("Switch to Blue Channel", bChannel);
 	glutAddMenuEntry("Switch to Grayscale", grayChannel);
+	glutAddMenuEntry("Switch to Depth Channel", depthChannel);
 	glutAddSubMenu("Scene Transformation", sceneTransformSubMenu);
 	glutAddMenuEntry("Reset All Transformations", resetScene);
 // Associate a mouse button with menu
